@@ -113,7 +113,14 @@
       var dest = role === "User" ? "pages/landing.html" : "pages/dashboard.html";
       window.location.href = dest;
     } catch (e) {
-      errEl.textContent = e.message || "Failed to create account.";
+      var msg = "Something went wrong. Please try again.";
+      var code = e.code || "";
+      if (code === "auth/email-already-in-use") msg = "This email is already registered. Try signing in instead.";
+      else if (code === "auth/invalid-email") msg = "Please enter a valid email address.";
+      else if (code === "auth/weak-password") msg = "Password is too weak. Use at least 6 characters.";
+      else if (code === "auth/network-request-failed") msg = "No internet connection. Check your network.";
+      else if (code === "auth/too-many-requests") msg = "Too many attempts. Please wait and try again.";
+      errEl.textContent = msg;
       errEl.style.display = "block";
       btn.textContent = "Create Account"; 
       btn.disabled = false;

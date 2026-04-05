@@ -111,7 +111,14 @@
       // Redirect based on selected role
       window.location.href = role === "User" ? "pages/landing.html" : "pages/dashboard.html";
     } catch (e) {
-      errEl.textContent = e.message || "Invalid email or password.";
+      var msg = "Something went wrong. Please try again.";
+      var code = e.code || "";
+      if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") msg = "Incorrect email or password.";
+      else if (code === "auth/invalid-email") msg = "Please enter a valid email address.";
+      else if (code === "auth/user-disabled") msg = "This account has been disabled. Contact the admin.";
+      else if (code === "auth/network-request-failed") msg = "No internet connection. Check your network.";
+      else if (code === "auth/too-many-requests") msg = "Too many failed attempts. Please wait and try again.";
+      errEl.textContent = msg;
       errEl.style.display = "block";
       btn.textContent = "Sign In"; 
       btn.disabled = false;
