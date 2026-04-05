@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Offers — ShopSmart</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase.js?v=5"></script>
+  <script src="../js/utils.js?v=5"></script>
+  <script src="../js/layout.js?v=5"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+var offers = [], products = [], editingId = null;
+
+async function loadData() {
+  try {
+    var results = await Promise.all([
+      db.collection(COL.offers).orderBy("createdAt","desc").get(),
+      db.collection(COL.products).orderBy("name").get()
+    ]);
+    var offerSnap = results[0], prodSnap = results[1];
+    offers   = offerSnap.docs.map(function(d) { return Object.assign({ id:d.id }, d.data()); });
+    products = prodSnap.docs.map(function(d) { return Object.assign({ id:d.id }, d.data()); });
+
+    // Populate product dropdown
+    var sel = document.getElementById("offer-product");
+    if (sel) sel.innerHTML = '<option value="">Select product…</option>' + products.map(function(p) { return '<option value="' + p.id + '">' + p.name + '</option>'; }).join("");
+
+    renderOffers();
+    renderExpiryAlerts();
+  } catch(e) {
+    console.error("Offers load error:", e);
+    var el = document.getElementById("offers-grid");
+    if (el) el.innerHTML = '<div style="color:var(--red);grid-column:1/-1;text-align:center;padding:20px">Error: ' + e.message + '<br><button class="btn btn-sm btn-outline" style="margin-top:8px" onclick="loadData()">🔄 Retry</button></div>';
+  }
+}
+
+function renderOffers() {
+  var active   = offers.filter(function(o) { return o.active && (!o.validUntil || daysUntil(o.validUntil) >= 0); });
+  var inactive = offers.filter(function(o) { return !o.active || (o.validUntil && daysUntil(o.validUntil) < 0); });
+
+  var el = document.getElementById("offers-grid");
+  if (!offers.length) { el.innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🎯</div><p>No offers yet. Create your first offer!</p></div>'; return; }
+
+  function renderCard(o) {
+    var p = products.find(function(x) { return x.id === o.productId; });
+    var isExpired = o.validUntil && daysUntil(o.validUntil) < 0;
+    var badgeText = o.type==="percent" ? o.value+"%" : o.type==="flat" ? "₹"+o.value : "Buy "+o.buyQty+" Get "+o.getQty;
+    var statusBadge = o.active && !isExpired ? "badge-green" : "badge-grey";
+    var statusText = isExpired ? "Expired" : o.active ? "Active" : "Inactive";
+    return '<div class="offer-card">' +
+      '<div class="offer-badge">' + badgeText + ' OFF</div>' +
+      '<div class="offer-product">' + (p ? p.name : o.productId) + '</div>' +
+      '<div class="offer-detail">Type: ' + (o.type==="percent" ? "Percentage" : o.type==="flat" ? "Flat Discount" : "Buy X Get Y") + '</div>' +
+      '<div class="offer-detail">Valid until: ' + (o.validUntil ? fmtDate(o.validUntil) : "No limit") + '</div>' +
+      '<div class="offer-detail" style="margin-top:4px">' +
+        '<span class="badge ' + statusBadge + '">' + statusText + '</span>' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;margin-top:10px">' +
+        '<button class="btn btn-sm btn-outline" onclick="toggleOffer(\'' + o.id + '\',' + o.active + ')">' + (o.active ? "Deactivate" : "Activate") + '</button>' +
+        '<button class="btn btn-sm btn-danger" onclick="deleteOffer(\'' + o.id + '\')">Delete</button>' +
+      '</div>' +
+    '</div>';
+  }
+
+  var html = "";
+  if (active.length) {
+    html += '<div style="grid-column:1/-1"><h3 style="color:var(--green-d);margin-bottom:12px">Active Offers (' + active.length + ')</h3></div>' + active.map(renderCard).join("");
+  }
+  if (inactive.length) {
+    html += '<div style="grid-column:1/-1"><h3 style="color:#888;margin:16px 0 12px">Inactive / Expired (' + inactive.length + ')</h3></div>' + inactive.map(renderCard).join("");
+  }
+  el.innerHTML = html;
+}
+
+function renderExpiryAlerts() {
+  var expiring = products.filter(function(p) {
+    if (!p.expiryDate) return false;
+    var thresholds = getExpiryThresholds(p.category);
+    var exp = daysUntil(p.expiryDate);
+    return exp <= thresholds.warning && exp >= 0;
+  });
+  var el = document.getElementById("expiry-suggestions");
+  if (!expiring.length) { el.innerHTML = '<p style="color:#888;font-size:13px">No products approaching expiry based on category thresholds.</p>'; return; }
+  el.innerHTML = expiring.map(function(p) {
+    var exp = daysUntil(p.expiryDate);
+    var thresholds = getExpiryThresholds(p.category);
+    var badgeClass = exp <= thresholds.urgent ? "badge-red" : "badge-yellow";
+    return '<div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--green-p2)">' +
+      '<span class="badge ' + badgeClass + '">' + exp + 'd left</span>' +
+      '<span style="flex:1;font-weight:600">' + p.name + ' <span style="font-size:11px;color:#888">(' + p.category + ')</span></span>' +
+      '<span style="font-size:12px;color:#888">' + fmtCurrency(p.sellingPrice) + '</span>' +
+      '<button class="btn btn-sm btn-accent" onclick="quickOffer(\'' + p.id + '\')">+ Create Offer</button>' +
+    '</div>';
+  }).join("");
+}
+
+function quickOffer(productId) {
+  document.getElementById("offer-product").value = productId;
+  document.getElementById("offer-type").value    = "percent";
+  document.getElementById("offer-value").value   = "10";
+  toggleOfferFields();
+  var p = products.find(function(x) { return x.id === productId; });
+  if (p && p.expiryDate) document.getElementById("offer-valid").value = p.expiryDate;
+  openModal();
+}
+
+function toggleOfferFields() {
+  var type = document.getElementById("offer-type").value;
+  var valueGroup = document.getElementById("value-group");
+  var bxgyGroup = document.getElementById("bxgy-group");
+  if (type === "bxgy") {
+    valueGroup.style.display = "none";
+    bxgyGroup.style.display = "flex";
+  } else {
+    valueGroup.style.display = "flex";
+    bxgyGroup.style.display = "none";
+  }
+}
+
+function openModal() {
+  editingId = null;
+  document.getElementById("offer-modal").classList.add("open");
+}
+
+function closeModal() {
+  document.getElementById("offer-modal").classList.remove("open");
+  document.getElementById("offer-form").reset();
+}
+
+async function saveOffer() {
+  var productId  = document.getElementById("offer-product").value;
+  var type       = document.getElementById("offer-type").value;
+  var validUntil = document.getElementById("offer-valid").value;
+  var data;
+
+  if (type === "bxgy") {
+    var buyQty = parseInt(document.getElementById("offer-buyqty").value);
+    var getQty = parseInt(document.getElementById("offer-getqty").value);
+    if (!productId || isNaN(buyQty) || isNaN(getQty)) { showToast("Please fill all required fields.", "error"); return; }
+    data = { productId: productId, type: type, buyQty: buyQty, getQty: getQty, value: 0, validUntil: validUntil||null, active: true, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+  } else {
+    var value = parseFloat(document.getElementById("offer-value").value);
+    if (!productId || !type || isNaN(value)) { showToast("Please fill all required fields.", "error"); return; }
+    data = { productId: productId, type: type, value: value, validUntil: validUntil||null, active: true, createdAt: firebase.firestore.FieldValue.serverTimestamp() };
+  }
+
+  try {
+    await db.collection(COL.offers).add(data);
+    showToast("Offer created!");
+    closeModal();
+    loadData();
+  } catch(e) {
+    showToast("Error creating offer.", "error");
+  }
+}
+
+async function toggleOffer(id, current) {
+  await db.collection(COL.offers).doc(id).update({ active: !current });
+  var o = offers.find(function(x) { return x.id === id; });
+  if (o) o.active = !current;
+  renderOffers();
+  showToast(current ? "Offer deactivated." : "Offer activated!");
+}
+
+async function deleteOffer(id) {
+  if (!confirmAction("Delete this offer?")) return;
+  await db.collection(COL.offers).doc(id).delete();
+  offers = offers.filter(function(x) { return x.id !== id; });
+  renderOffers();
+  showToast("Offer deleted.");
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  buildLayout("Offers & Discounts");
+
+  document.getElementById("topbar-actions").innerHTML = '<button class="btn btn-primary" onclick="openModal()">+ Create Offer</button>';
+
+  document.getElementById("page-content").innerHTML =
+    '<div class="grid-2" style="margin-bottom:18px">' +
+      '<div class="card" style="grid-column:1/-1">' +
+        '<div class="card-title">⏰ Expiry-Linked Suggestions</div>' +
+        '<div id="expiry-suggestions"><div style="color:#888">Loading…</div></div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="card">' +
+      '<div class="card-title">All Offers</div>' +
+      '<div id="offers-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px">' +
+        '<div style="color:#888">Loading…</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<!-- Modal -->' +
+    '<div class="modal-overlay" id="offer-modal">' +
+      '<div class="modal">' +
+        '<div class="modal-header">' +
+          '<h3>Create Offer</h3>' +
+          '<button class="modal-close" onclick="closeModal()">✕</button>' +
+        '</div>' +
+        '<form id="offer-form">' +
+          '<div class="form-group" style="margin-bottom:12px">' +
+            '<label>Product *</label>' +
+            '<select id="offer-product"><option value="">Loading…</option></select>' +
+          '</div>' +
+          '<div class="form-grid" style="margin-bottom:12px">' +
+            '<div class="form-group">' +
+              '<label>Offer Type *</label>' +
+              '<select id="offer-type" onchange="toggleOfferFields()">' +
+                '<option value="percent">Percentage Off (%)</option>' +
+                '<option value="flat">Flat Discount (₹)</option>' +
+                '<option value="bxgy">Buy X Get Y</option>' +
+              '</select>' +
+            '</div>' +
+            '<div class="form-group" id="value-group">' +
+              '<label>Discount Value *</label>' +
+              '<input type="number" id="offer-value" min="0" placeholder="e.g. 10"/>' +
+            '</div>' +
+            '<div class="form-group" id="bxgy-group" style="display:none;gap:8px">' +
+              '<label>Buy Qty / Get Free</label>' +
+              '<div style="display:flex;gap:8px"><input type="number" id="offer-buyqty" min="1" placeholder="Buy" style="width:50%"/><input type="number" id="offer-getqty" min="1" placeholder="Get Free" style="width:50%"/></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="form-group" style="margin-bottom:12px">' +
+            '<label>Valid Until</label>' +
+            '<input type="date" id="offer-valid"/>' +
+          '</div>' +
+        '</form>' +
+        '<div class="modal-footer">' +
+          '<button class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+          '<button class="btn btn-primary" onclick="saveOffer()">Create Offer</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  loadData();
+});
+</script>
+</body>
+</html>
