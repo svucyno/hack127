@@ -5,7 +5,8 @@ var APP_SHELL = ["/", "/index.html", "/signup.html", "/css/style.css", "/css/don
   "/js/barcode-scanner.js", "/js/predictions.js", "/js/donut-chart-fixed.js", "/js/offline.js",
   "/pages/dashboard.html", "/pages/inventory.html", "/pages/billing.html", "/pages/alerts.html",
   "/pages/offers.html", "/pages/reports.html", "/pages/suppliers.html", "/pages/customers.html",
-  "/pages/landing.html", "/pages/offers_user.html", "/pages/cart.html", "/pages/orders.html"];
+  "/pages/landing.html", "/pages/offers_user.html", "/pages/cart.html", "/pages/orders.html",
+  "/pages/users.html", "/pages/order_mgmt.html", "/pages/notifications.html"];
 
 self.addEventListener("install", function(e) {
   e.waitUntil(caches.open(CACHE_NAME).then(function(c) { return c.addAll(APP_SHELL).catch(function(){}); }));
