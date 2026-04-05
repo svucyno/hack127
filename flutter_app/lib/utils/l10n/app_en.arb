@@ -1,0 +1,18 @@
+{
+  "@@locale": "en",
+  "appTitle": "ShopSmart",
+  "dashboard": "Dashboard",
+  "inventory": "Inventory",
+  "billing": "Billing",
+  "alerts": "Alerts",
+  "offers": "Offers",
+  "reports": "Reports",
+  "suppliers": "Suppliers",
+  "signIn": "Sign In",
+  "signOut": "Sign Out",
+  "search": "Search",
+  "save": "Save",
+  "cancel": "Cancel",
+  "delete": "Delete",
+  "thankYou": "Thank you for shopping!"
+}

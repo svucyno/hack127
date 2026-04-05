@@ -1,0 +1,18 @@
+{
+  "@@locale": "hi",
+  "appTitle": "शॉपस्मार्ट",
+  "dashboard": "डैशबोर्ड",
+  "inventory": "इन्वेंटरी",
+  "billing": "बिलिंग",
+  "alerts": "अलर्ट",
+  "offers": "ऑफ़र",
+  "reports": "रिपोर्ट",
+  "suppliers": "सप्लायर",
+  "signIn": "साइन इन",
+  "signOut": "साइन आउट",
+  "search": "खोजें",
+  "save": "सेव करें",
+  "cancel": "रद्द करें",
+  "delete": "हटाएं",
+  "thankYou": "खरीदारी के लिए धन्यवाद!"
+}
