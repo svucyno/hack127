@@ -233,3 +233,41 @@ function removeFromCart(id) {
   cart = cart.filter(function(c) { return c.id !== id; });
   renderCart();
 }
+
+// ── Barcode Scan-to-Cart ────────────────────────────────────────────────
+function scanBillingBarcode() {
+  BarcodeScanner.open({
+    mode: "continuous",
+    title: "Scan Items to Cart",
+    onScan: function(code) {
+      lookupBillingBarcode(code);
+    }
+  });
+}
+
+async function lookupBillingBarcode(code) {
+  try {
+    var snap = await db.collection(COL.products).where("barcode", "==", code).get();
+    if (!snap.empty) {
+      var doc = snap.docs[0];
+      var productId = doc.id;
+      // Ensure product is in our local products array
+      var localProduct = products.find(function(p) { return p.id === productId; });
+      if (!localProduct) {
+        // Product not in local cache, reload and try again
+        await loadProducts();
+        localProduct = products.find(function(p) { return p.id === productId; });
+      }
+      if (localProduct) {
+        addToCart(productId);
+        showToast("Added: " + localProduct.name);
+      } else {
+        showToast("Product data error for barcode: " + code, "error");
+      }
+    } else {
+      showToast("Product not found for barcode: " + code, "error");
+    }
+  } catch(e) {
+    showToast("Scan error: " + e.message, "error");
+  }
+}

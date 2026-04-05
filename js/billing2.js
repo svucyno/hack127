@@ -328,8 +328,9 @@ document.addEventListener("DOMContentLoaded", function() {
     pageContent.innerHTML =
       '<div class="billing-layout">'
       + '<div class="card" style="padding:0;overflow:hidden">'
-      + '<div style="padding:14px 14px 10px;border-bottom:1px solid var(--border)">'
-      + '<input type="text" id="search-input" placeholder="🔍 Search products..." oninput="renderProductList(this.value)" style="width:100%"/>'
+      + '<div style="padding:14px 14px 10px;border-bottom:1px solid var(--border);display:flex;gap:8px;align-items:center">'
+      + '<input type="text" id="search-input" placeholder="🔍 Search products..." oninput="renderProductList(this.value)" style="flex:1"/>'
+      + '<button class="btn-scan" onclick="scanBillingBarcode()" title="Scan barcode to add to cart">📷 Scan</button>'
       + '</div>'
       + '<div id="prod-list" style="max-height:calc(100vh - 220px);overflow-y:auto">'
       + '<div style="padding:16px;color:#888;text-align:center">Loading...</div>'
