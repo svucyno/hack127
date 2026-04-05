@@ -121,14 +121,14 @@ function printBill(o) {
   var s = JSON.parse(localStorage.getItem("shopSettings")||"{}");
   var w = window.open("","_blank","width=400,height=600");
   if (!w) { showToast("Allow pop-ups to print.","error"); return; }
-  var items = (o.items||[]).map(function(i) { return '<div class="r"><span>'+i.name+' x'+i.qty+'</span><span>Rs.'+((i.price||0)*i.qty).toFixed(2)+'</span></div>'; }).join("");
-  w.document.write('<html><head><title>Bill</title><style>body{font-family:monospace;font-size:13px;padding:20px;max-width:320px}h2{text-align:center;margin:0}p{text-align:center;color:#555;margin:2px 0}hr{border:1px dashed #ccc;margin:10px 0}.r{display:flex;justify-content:space-between;margin:4px 0}.t{font-weight:bold;font-size:15px}</style></head><body>'+
-    '<h2>'+(s.shopName||"ShopSmart")+'</h2><p>'+(s.address||"")+'</p><hr/>'+
-    '<div class="r"><span>Order</span><span>'+(o.orderId||o.id)+'</span></div>'+
-    '<div class="r"><span>Customer</span><span>'+(o.customerName||"")+'</span></div><hr/>'+
-    items+'<hr/>'+
-    '<div class="r t"><span>TOTAL</span><span>Rs.'+(o.grandTotal||0).toFixed(2)+'</span></div><hr/>'+
-    '<p>Thank you!</p></body></html>');
+  var items = (o.items||[]).map(function(i) { return '<div class="r"><span>'+i.name+' x'+i.qty+'<\/span><span>Rs.'+((i.price||0)*i.qty).toFixed(2)+'<\/span><\/div>'; }).join("");
+  w.document.write('<html><head><title>Bill<\/title><style>body{font-family:monospace;font-size:13px;padding:20px;max-width:320px}h2{text-align:center;margin:0}p{text-align:center;color:#555;margin:2px 0}hr{border:1px dashed #ccc;margin:10px 0}.r{display:flex;justify-content:space-between;margin:4px 0}.t{font-weight:bold;font-size:15px}<\/style><\/head><body>'+
+    '<h2>'+(s.shopName||"ShopSmart")+'<\/h2><p>'+(s.address||"")+'<\/p><hr\/>'+
+    '<div class="r"><span>Order<\/span><span>'+(o.orderId||o.id)+'<\/span><\/div>'+
+    '<div class="r"><span>Customer<\/span><span>'+(o.customerName||"")+'<\/span><\/div><hr\/>'+
+    items+'<hr\/>'+
+    '<div class="r t"><span>TOTAL<\/span><span>Rs.'+(o.grandTotal||0).toFixed(2)+'<\/span><\/div><hr\/>'+
+    '<p>Thank you!<\/p><\/body><\/html>');
   w.document.close(); w.focus(); w.print();
 }
 
