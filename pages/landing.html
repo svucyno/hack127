@@ -39,7 +39,7 @@ async function loadShop() {
     CartManager.updateCartBadge();
   } catch(e) {
     var el = document.getElementById("shop-products");
-    if (el) el.innerHTML = '<div style="text-align:center;padding:32px;color:var(--red)">Error loading products: ' + e.message + '</div>';
+    if (el) el.innerHTML = '<div style="text-align:center;padding:32px;color:var(--red)">Could not load products. Please refresh the page.</div>';
   }
 }
 

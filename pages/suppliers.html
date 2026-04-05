@@ -34,7 +34,7 @@ async function loadData() {
   } catch(e) {
     console.error("Suppliers load error:", e);
     var el = document.getElementById("suppliers-grid");
-    if (el) el.innerHTML = '<div style="color:var(--red);grid-column:1/-1;text-align:center;padding:20px">Error: ' + e.message + '<br><button class="btn btn-sm btn-outline" style="margin-top:8px" onclick="loadData()">🔄 Retry</button></div>';
+    if (el) el.innerHTML = '<div style="color:var(--red);grid-column:1/-1;text-align:center;padding:20px">Could not load suppliers. <br><button class="btn btn-sm btn-outline" style="margin-top:8px" onclick="loadData()">🔄 Retry</button></div>';
   }
 }
 
@@ -278,7 +278,7 @@ async function saveSupplier() {
     closeModal();
     loadData();
   } catch(e) {
-    showToast("Error saving supplier: " + e.message, "error");
+    showToast(friendlyError(e), "error");
   }
 }
 
@@ -359,7 +359,7 @@ async function saveLinkProducts() {
     closeLinkModal();
     loadData();
   } catch(e) {
-    showToast("Error updating links: " + e.message, "error");
+    showToast(friendlyError(e), "error");
   }
 }
 
@@ -378,7 +378,7 @@ async function deleteSupplier(id,name) {
     showToast("Supplier deleted.");
     loadData();
   } catch(e) {
-    showToast("Error deleting supplier.", "error");
+    showToast("Could not delete supplier. Please try again.", "error");
   }
 }
 </script>

@@ -87,7 +87,7 @@ async function doCheckout() {
     renderCartPage();
     setTimeout(function() { window.location.href = "orders.html"; }, 1500);
   } catch(e) {
-    showToast("Checkout failed: " + e.message, "error");
+    showToast("Checkout failed. Please try again.", "error");
   } finally {
     btn.disabled = false; btn.textContent = "✅ Place Order";
   }
@@ -106,7 +106,7 @@ async function doPreOrder() {
     renderCartPage();
     setTimeout(function() { window.location.href = "orders.html"; }, 1500);
   } catch(e) {
-    showToast("Pre-order failed: " + e.message, "error");
+    showToast("Pre-order failed. Please try again.", "error");
   } finally {
     btn.disabled = false; btn.textContent = "⏰ Pre-Order (10 min)";
   }

@@ -18,7 +18,7 @@ async function loadProducts() {
   } catch(e) {
     console.error("Load products error:", e);
     var el = document.getElementById("prod-list");
-    if (el) el.innerHTML = '<div style="padding:16px;color:var(--red);text-align:center">Error: ' + e.message + '</div>';
+    if (el) el.innerHTML = '<div style="padding:16px;color:var(--red);text-align:center">Could not load products. Please refresh.</div>';
   }
 }
 
@@ -140,7 +140,7 @@ function addToCartByBarcode(code) {
     addToCart(p.id);
     showToast("✓ " + p.name + " added");
   } else {
-    showToast("Product not found for barcode: " + code, "error");
+    showToast("Product not found. Try searching manually.", "error");
   }
 }
 

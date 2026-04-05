@@ -46,7 +46,7 @@ async function loadData() {
   } catch(e) {
     console.error("Offers load error:", e);
     var el = document.getElementById("offers-grid");
-    if (el) el.innerHTML = '<div style="color:var(--red);grid-column:1/-1;text-align:center;padding:20px">Error: ' + e.message + '</div>';
+    if (el) el.innerHTML = '<div style="color:var(--red);grid-column:1/-1;text-align:center;padding:20px">Could not load offers. Please refresh.</div>';
   }
 }
 
@@ -262,7 +262,7 @@ async function saveOffer() {
     closeModal();
     loadData();
   } catch(e) {
-    showToast("Error creating offer.", "error");
+    showToast("Could not create offer. Please try again.", "error");
   }
 }
 

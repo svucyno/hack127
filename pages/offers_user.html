@@ -33,7 +33,7 @@ async function loadDeals() {
     products = results[1].docs.map(function(d) { return Object.assign({id:d.id}, d.data()); });
     renderDeals();
   } catch(e) {
-    document.getElementById("deals-grid").innerHTML = '<div style="color:var(--red);text-align:center;padding:24px">Error: ' + e.message + '</div>';
+    document.getElementById("deals-grid").innerHTML = '<div style="color:var(--red);text-align:center;padding:24px">Could not load deals. Please refresh.</div>';
   }
 }
 

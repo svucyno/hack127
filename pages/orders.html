@@ -32,7 +32,7 @@ async function loadOrders() {
     myOrders = snap.docs.map(function(d) { return Object.assign({id:d.id}, d.data()); });
     renderOrders();
   } catch(e) {
-    document.getElementById("orders-list").innerHTML = '<div style="color:var(--red);text-align:center;padding:24px">Error: ' + e.message + '</div>';
+    document.getElementById("orders-list").innerHTML = '<div style="color:var(--red);text-align:center;padding:24px">Could not load orders. Please refresh.</div>';
   }
 }
 
@@ -84,7 +84,7 @@ async function buyAgain(orderId) {
     }
     showToast("Items added to cart!");
   } catch(e) {
-    showToast("Error: " + e.message, "error");
+    showToast("Could not add items to cart. Please try again.", "error");
   }
 }
 

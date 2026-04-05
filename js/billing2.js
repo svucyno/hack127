@@ -119,7 +119,7 @@ async function confirmBill() {
     document.getElementById("cust-name").value = "";
     await loadProducts();
   } catch(e) {
-    showToast("Error: " + e.message, "error");
+    showToast(friendlyError(e), "error");
   } finally {
     btn.disabled = false; btn.textContent = "✅ Confirm & Save Bill";
   }
@@ -128,7 +128,7 @@ async function confirmBill() {
 function printBill(billId, summary, items, custName, totalDiscount) {
   var settings = JSON.parse(localStorage.getItem("shopSettings") || "{}");
   var w = window.open("","_blank","width=400,height=600");
-  if (!w) { showToast("Pop-up blocked!", "error"); return; }
+  if (!w) { showToast("Please allow pop-ups to print the bill.", "error"); return; }
   var itemsHtml = items.map(function(i) {
     var line = '<div class="row"><span>' + i.name + ' x' + i.qty + '</span><span>Rs.' + (i.price * i.qty).toFixed(2) + '</span></div>';
     if (i.offer && i.price < i.originalPrice) {

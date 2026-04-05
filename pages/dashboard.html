@@ -367,7 +367,7 @@ async function loadDashboard() {
     content.innerHTML = '<div class="card" style="text-align:center;padding:40px">' +
       '<div style="font-size:36px;margin-bottom:12px">⚠️</div>' +
       '<div style="font-weight:700;margin-bottom:8px;color:var(--red)">Failed to load dashboard</div>' +
-      '<div style="font-size:13px;color:#888;margin-bottom:16px">' + (e.message || e) + '</div>' +
+      '<div style="font-size:13px;color:#888;margin-bottom:16px">Could not load dashboard. Please try again.</div>' +
       '<button class="btn btn-primary" onclick="loadDashboard()">🔄 Retry</button>' +
     '</div>';
   }

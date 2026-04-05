@@ -149,7 +149,7 @@ async function loadReport(period) {
   }
   } catch(e) {
     console.error("Report load error:", e);
-    document.getElementById("report-body").innerHTML = '<div class="card" style="text-align:center;padding:32px;color:var(--red)">Error: ' + e.message + '<br><button class="btn btn-sm btn-outline" style="margin-top:8px" onclick="loadReport(\'' + period + '\')">🔄 Retry</button></div>';
+    document.getElementById("report-body").innerHTML = '<div class="card" style="text-align:center;padding:32px;color:var(--red)">Could not load report. <br><button class="btn btn-sm btn-outline" style="margin-top:8px" onclick="loadReport(\'' + period + '\')">🔄 Retry</button></div>';
   }
 }
 

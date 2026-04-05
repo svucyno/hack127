@@ -89,7 +89,7 @@ async function loadAlerts() {
   } catch(e) {
     console.error("Alerts load error:", e);
     var el = document.getElementById("alerts-list");
-    if (el) el.innerHTML = '<div style="text-align:center;padding:32px;color:var(--red)">Error: ' + e.message + '<br><button class="btn btn-sm btn-outline" style="margin-top:8px" onclick="loadAlerts()">🔄 Retry</button></div>';
+    if (el) el.innerHTML = '<div style="text-align:center;padding:32px;color:var(--red)">Could not load alerts. <br><button class="btn btn-sm btn-outline" style="margin-top:8px" onclick="loadAlerts()">🔄 Retry</button></div>';
   }
 }
 

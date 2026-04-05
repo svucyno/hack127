@@ -27,13 +27,12 @@
 
     <div class="form-group" style="margin-bottom:20px">
       <label>Login as</label>
-      <div id="role-selector" style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-        <button type="button" class="role-chip active" onclick="selectRole(this,'Admin')">👑 Admin</button>
+      <div id="role-selector" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
         <button type="button" class="role-chip" onclick="selectRole(this,'Worker')">📦 Worker</button>
         <button type="button" class="role-chip" onclick="selectRole(this,'Cashier')">💳 Cashier</button>
-        <button type="button" class="role-chip" onclick="selectRole(this,'User')">🛒 Customer</button>
+        <button type="button" class="role-chip active" onclick="selectRole(this,'User')">🛒 Customer</button>
       </div>
-      <input type="hidden" id="login-role" value="Admin"/>
+      <input type="hidden" id="login-role" value="User"/>
     </div>
 
     <style>
@@ -96,20 +95,29 @@
     
     try {
       var cred = await auth.signInWithEmailAndPassword(email, pass);
-      // Update role and last login in Firestore
+      var selectedRole = document.getElementById("login-role").value;
+      
+      // Check if user already has a role in Firestore
+      var existingDoc = await db.collection("users").doc(cred.user.uid).get();
+      var existingRole = existingDoc.exists ? existingDoc.data().role : null;
+      
+      // Only set role if user doesn't have one yet (don't overwrite Admin)
+      var finalRole = existingRole || selectedRole;
+      
       await db.collection("users").doc(cred.user.uid).set({
         uid: cred.user.uid,
         name: cred.user.displayName || email.split("@")[0],
         email: email,
-        role: role,
+        role: finalRole,
         lastLogin: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
-      // Set cached role so next page picks it up immediately
+      
+      // Cache the actual role
       localStorage.setItem("ss_role_" + cred.user.uid, JSON.stringify({
-        role: role, name: cred.user.displayName || email.split("@")[0], email: email, ts: Date.now()
+        role: finalRole, name: cred.user.displayName || email.split("@")[0], email: email, ts: Date.now()
       }));
-      // Redirect based on selected role
-      window.location.href = role === "User" ? "pages/landing.html" : "pages/dashboard.html";
+      
+      window.location.href = finalRole === "User" ? "pages/landing.html" : "pages/dashboard.html";
     } catch (e) {
       var msg = "Something went wrong. Please try again.";
       var code = e.code || "";

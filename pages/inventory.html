@@ -104,7 +104,7 @@ async function loadInventory() {
   } catch(e) {
     console.error("Inventory load error:", e);
     var tbody = document.getElementById("inv-tbody");
-    if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--red)">Error: ' + e.message + '</td></tr>';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--red)">Could not load inventory. Please refresh the page.</td></tr>';
   }
 }
 
@@ -192,7 +192,7 @@ async function saveProduct() {
     closeModal();
     loadInventory();
   } catch(e) {
-    showToast("Error saving product: " + e.message, "error");
+    showToast(friendlyError(e), "error");
   }
 }
 
@@ -203,7 +203,7 @@ async function deleteProduct(id, name) {
     showToast('"' + name + '" deleted.');
     loadInventory();
   } catch(e) {
-    showToast("Error deleting product.", "error");
+    showToast("Could not delete product. Please try again.", "error");
   }
 }
 

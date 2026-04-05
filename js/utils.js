@@ -360,3 +360,24 @@ function buildCatNav(categories, productsList, activeCat, onClickFn) {
       + '</div>';
   }).join("") + '</div>';
 }
+
+// ── User-Friendly Error Messages ───────────────────────────────────────────
+function friendlyError(e) {
+  if (!e) return "Something went wrong. Please try again.";
+  var code = e.code || "";
+  var msg = e.message || "";
+  // Firebase Auth errors
+  if (code === "auth/email-already-in-use") return "This email is already registered.";
+  if (code === "auth/invalid-email") return "Please enter a valid email address.";
+  if (code === "auth/weak-password") return "Password is too weak. Use at least 6 characters.";
+  if (code === "auth/user-not-found" || code === "auth/wrong-password" || code === "auth/invalid-credential") return "Incorrect email or password.";
+  if (code === "auth/user-disabled") return "This account has been disabled.";
+  if (code === "auth/too-many-requests") return "Too many attempts. Please wait and try again.";
+  if (code === "auth/network-request-failed") return "No internet connection. Check your network.";
+  // Firestore errors
+  if (code === "permission-denied" || msg.indexOf("permission") !== -1) return "You don't have permission to do this.";
+  if (code === "unavailable" || msg.indexOf("offline") !== -1) return "You're offline. This will sync when you reconnect.";
+  if (code === "not-found") return "The requested data was not found.";
+  if (msg.indexOf("network") !== -1 || msg.indexOf("Failed to fetch") !== -1) return "Network error. Check your connection.";
+  return "Something went wrong. Please try again.";
+}
