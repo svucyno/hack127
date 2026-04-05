@@ -24,16 +24,22 @@ var offers = [], products = [];
 async function loadDeals() {
   try {
     var results = await Promise.all([
-      db.collection(COL.offers).where("active","==",true).orderBy("createdAt","desc").get(),
+      db.collection(COL.offers).get(),
       db.collection(COL.products).get()
     ]);
     var todayStr = today();
     offers = results[0].docs.map(function(d) { return Object.assign({id:d.id}, d.data()); })
-      .filter(function(o) { return (!o.validUntil || o.validUntil >= todayStr) && (!o.maxQty || (o.soldQty||0) < o.maxQty); });
+      .filter(function(o) { return o.active && (!o.validUntil || o.validUntil >= todayStr) && (!o.maxQty || (o.soldQty||0) < o.maxQty); })
+      .sort(function(a,b) { 
+        var aTime = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0;
+        var bTime = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0;
+        return bTime - aTime;
+      });
     products = results[1].docs.map(function(d) { return Object.assign({id:d.id}, d.data()); });
     renderDeals();
   } catch(e) {
-    document.getElementById("deals-grid").innerHTML = '<div style="color:var(--red);text-align:center;padding:24px">Could not load deals. Please refresh.</div>';
+    console.error("Deals load error:", e);
+    document.getElementById("deals-grid").innerHTML = '<div class="empty-state"><div class="empty-icon">🏷️</div><p>No deals available right now. Check back soon!</p></div>';
   }
 }
 

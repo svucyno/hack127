@@ -26,13 +26,13 @@ async function loadShop() {
   try {
     var results = await Promise.all([
       db.collection(COL.products).orderBy("name").get(),
-      db.collection(COL.offers).where("active", "==", true).get()
+      db.collection(COL.offers).get()
     ]);
     allProducts = results[0].docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); })
       .filter(function(p) { return (p.quantity || 0) > 0; });
     var todayStr = today();
     allOffers = results[1].docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); })
-      .filter(function(o) { return !o.validUntil || o.validUntil >= todayStr; });
+      .filter(function(o) { return o.active && (!o.validUntil || o.validUntil >= todayStr); });
     renderCatGrid();
     renderProducts();
     renderTrending();

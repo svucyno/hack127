@@ -27,9 +27,13 @@ async function loadOrders() {
     if (!user) { setTimeout(loadOrders, 500); return; }
     var snap = await db.collection(COL.sales)
       .where("userId", "==", user.uid)
-      .orderBy("createdAt", "desc")
       .limit(50).get();
-    myOrders = snap.docs.map(function(d) { return Object.assign({id:d.id}, d.data()); });
+    myOrders = snap.docs.map(function(d) { return Object.assign({id:d.id}, d.data()); })
+      .sort(function(a,b) {
+        var aTime = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().getTime() : 0;
+        var bTime = b.createdAt && b.createdAt.toDate ? b.createdAt.toDate().getTime() : 0;
+        return bTime - aTime;
+      });
     renderOrders();
   } catch(e) {
     document.getElementById("orders-list").innerHTML = '<div style="color:var(--red);text-align:center;padding:24px">Could not load orders. Please refresh.</div>';
