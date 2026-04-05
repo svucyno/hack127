@@ -31,46 +31,48 @@ async function loadNotifications() {
     var allOffers = results[0].docs.map(function(d) { return Object.assign({id:d.id}, d.data()); });
     var allProducts = results[1].docs.map(function(d) { return Object.assign({id:d.id}, d.data()); });
     notifications = [];
+    var seenProducts = {}; // Track productId → best notification type to avoid duplicates
 
-    // Active deals notification
+    // Active deals notification (highest priority — always show)
     var activeDeals = allOffers.filter(function(o) {
       return o.active && (!o.validUntil || o.validUntil >= todayStr) && (!o.maxQty || (o.soldQty||0) < o.maxQty);
     });
     activeDeals.forEach(function(o) {
       var p = allProducts.find(function(x) { return x.id === o.productId; });
       if (!p) return;
+      seenProducts[p.id] = true;
       var badge = o.type === "percent" ? o.value + "% OFF" : o.type === "flat" ? "₹" + o.value + " OFF" : "Special Deal";
       var icon = "🏷️", type = "deal";
 
-      // Expiring soon deals
       if (o.validUntil && daysUntil(o.validUntil) <= 3) {
         icon = "⏰"; type = "urgent";
         notifications.push({ icon: icon, type: type, title: "Deal ending soon!", message: badge + " on " + p.name + " — only " + daysUntil(o.validUntil) + " day(s) left!", time: o.createdAt, productId: p.id, offerId: o.id });
       }
-      // Limited stock deals
       else if (o.maxQty && (o.soldQty||0) >= o.maxQty * 0.7) {
         icon = "🔥"; type = "hot";
         var left = o.maxQty - (o.soldQty||0);
         notifications.push({ icon: icon, type: type, title: "Selling fast!", message: "Only " + left + " left at " + badge + " on " + p.name, time: o.createdAt, productId: p.id, offerId: o.id });
       }
-      // Regular deal
       else {
         notifications.push({ icon: icon, type: type, title: badge + " on " + p.name, message: (o.reason || "Special offer") + " — " + fmtCurrency(p.sellingPrice), time: o.createdAt, productId: p.id, offerId: o.id });
       }
     });
 
-    // Low price products (good deals even without offers)
-    var cheapProducts = allProducts.filter(function(p) { return p.sellingPrice <= 50 && (p.quantity||0) > 0; }).slice(0, 3);
-    cheapProducts.forEach(function(p) {
-      notifications.push({ icon: "💰", type: "tip", title: "Budget pick: " + p.name, message: "Just " + fmtCurrency(p.sellingPrice) + " — great value!", time: null, productId: p.id });
-    });
-
-    // New arrivals (products added in last 7 days)
+    // New arrivals — only if product doesn't already have a deal notification
     var weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
     allProducts.forEach(function(p) {
+      if (seenProducts[p.id]) return;
       if (p.createdAt && p.createdAt.toDate && p.createdAt.toDate() >= weekAgo) {
+        seenProducts[p.id] = true;
         notifications.push({ icon: "✨", type: "new", title: "New arrival: " + p.name, message: (p.company||"") + " — " + fmtCurrency(p.sellingPrice), time: p.createdAt, productId: p.id });
       }
+    });
+
+    // Budget picks — only if product doesn't already have any notification
+    var cheapProducts = allProducts.filter(function(p) { return !seenProducts[p.id] && p.sellingPrice <= 50 && (p.quantity||0) > 0; }).slice(0, 3);
+    cheapProducts.forEach(function(p) {
+      seenProducts[p.id] = true;
+      notifications.push({ icon: "💰", type: "tip", title: "Budget pick: " + p.name, message: "Just " + fmtCurrency(p.sellingPrice) + " — great value!", time: null, productId: p.id });
     });
 
     // Sort: urgent first, then by time
