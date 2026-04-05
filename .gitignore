@@ -8,3 +8,6 @@ build/
 .npm
 *.log
 .vscode/
+design.md
+requirements.md
+tasks.md
