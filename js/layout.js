@@ -55,7 +55,7 @@ function buildLayout(pageTitle) {
     { href: "../pages/offers_user.html", key: "Shop",        navKey: "offers_user", label: typeof t === 'function' ? t("nav.offers") : "Deals" },
     { href: "../pages/cart.html",        key: "Cart",        navKey: "cart",        label: "Cart" },
     { href: "../pages/orders.html",      key: "Orders",      navKey: "orders",      label: "Orders" },
-    { href: "../pages/notifications.html",key: "Alerts",      navKey: "notifications",label: "🔔 Alerts" },
+    { href: "../pages/notifications.html",key: "Alerts",      navKey: "notifications",label: "Notifications" },
   ];
 
   // Filter nav by role
@@ -150,7 +150,7 @@ function _rebuildNav(sidebarNavEl, role) {
     { href: "../pages/offers_user.html", key: "Shop",        navKey: "offers_user", label: "Deals" },
     { href: "../pages/cart.html",        key: "Cart",        navKey: "cart",        label: "Cart" },
     { href: "../pages/orders.html",      key: "Orders",      navKey: "orders",      label: "Orders" },
-    { href: "../pages/notifications.html",key: "Alerts",      navKey: "notifications",label: "🔔 Alerts" },
+    { href: "../pages/notifications.html",key: "Alerts",      navKey: "notifications",label: "Notifications" },
   ];
   var allowedKeys = typeof getNavItemsForRole === 'function' ? getNavItemsForRole(role) : [];
   var nav = allNav.filter(function(n) { return allowedKeys.indexOf(n.navKey) !== -1; });

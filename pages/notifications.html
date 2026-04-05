@@ -97,24 +97,30 @@ function renderNotifications() {
     return;
   }
 
-  var colorMap = { urgent: "#ffcdd2", hot: "#fff3e0", deal: "#e8f5e9", new: "#e3f2fd", tip: "#f3e5f5" };
-  var borderMap = { urgent: "#e84a3d", hot: "#ff9800", deal: "#3ab87d", new: "#1565C0", tip: "#7c3aed" };
+  var colorMap = {
+    urgent: "rgba(232,74,61,0.12)",
+    hot: "rgba(255,152,0,0.12)",
+    deal: "rgba(58,184,125,0.12)",
+    new: "rgba(0,163,184,0.12)",
+    tip: "rgba(124,58,237,0.12)"
+  };
+  var borderMap = { urgent: "var(--red,#e84a3d)", hot: "var(--accent,#e8634f)", deal: "var(--mint,#3ab87d)", new: "var(--cyan,#00a3b8)", tip: "#7c3aed" };
 
   el.innerHTML = notifications.map(function(n) {
-    var bg = colorMap[n.type] || "#f5f5f5";
-    var border = borderMap[n.type] || "#ccc";
+    var bg = colorMap[n.type] || "var(--card-bg)";
+    var border = borderMap[n.type] || "var(--border)";
     var timeStr = n.time && n.time.toDate ? n.time.toDate().toLocaleDateString("en-IN", {day:"2-digit",month:"short"}) : "";
     var actionBtn = n.productId
       ? '<button class="btn btn-sm btn-primary" style="margin-top:8px;font-size:11px" onclick="goToProduct(\'' + n.productId + '\')">🛒 Shop Now</button>'
       : '';
-    return '<div style="display:flex;gap:12px;padding:14px 16px;border-radius:12px;margin-bottom:10px;background:' + bg + ';border-left:4px solid ' + border + ';position:relative">' +
+    return '<div style="display:flex;gap:12px;padding:14px 16px;border-radius:12px;margin-bottom:10px;background:' + bg + ';border-left:4px solid ' + border + ';border:1px solid var(--border);box-shadow:var(--shadow)">' +
       '<div style="font-size:24px;flex-shrink:0;margin-top:2px">' + n.icon + '</div>' +
       '<div style="flex:1">' +
-        '<div style="font-weight:700;font-size:13px;color:var(--text,#333)">' + n.title + '</div>' +
-        '<div style="font-size:12px;color:var(--text-2,#666);margin-top:2px">' + n.message + '</div>' +
+        '<div style="font-weight:700;font-size:13px;color:var(--text)">' + n.title + '</div>' +
+        '<div style="font-size:12px;color:var(--text-2);margin-top:2px">' + n.message + '</div>' +
         actionBtn +
       '</div>' +
-      (timeStr ? '<div style="font-size:10px;color:var(--text-3,#999);white-space:nowrap">' + timeStr + '</div>' : '') +
+      (timeStr ? '<div style="font-size:10px;color:var(--text-3);white-space:nowrap">' + timeStr + '</div>' : '') +
     '</div>';
   }).join("");
 
@@ -128,7 +134,7 @@ function goToProduct(pid) {
 }
 
 document.addEventListener("DOMContentLoaded", function() {
-  buildLayout("🔔 Notifications");
+  buildLayout("Notifications");
   document.getElementById("page-content").innerHTML =
     '<div class="card">' +
       '<div class="card-title">🔔 Your Notifications</div>' +
