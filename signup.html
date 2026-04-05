@@ -31,15 +31,6 @@
       <input type="password" id="password" placeholder="••••••••" autocomplete="new-password"/>
     </div>
 
-    <div class="form-group" style="margin-bottom:20px">
-      <label>I am a</label>
-      <select id="role" style="width:100%">
-        <option value="User">🛒 Customer (Shopper)</option>
-        <option value="Cashier">💳 Cashier</option>
-        <option value="Worker">📦 Stock Manager / Worker</option>
-      </select>
-    </div>
-
     <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:15px;padding:11px" onclick="doSignup()" id="signup-btn">
       Create Account
     </button>
@@ -75,7 +66,7 @@
     const name  = document.getElementById("name").value.trim();
     const email = document.getElementById("email").value.trim();
     const pass  = document.getElementById("password").value;
-    const role  = document.getElementById("role").value;
+    const role  = "User";
     const errEl = document.getElementById("signup-error");
     const btn   = document.getElementById("signup-btn");
     
