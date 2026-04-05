@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Suppliers — ShopSmart</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase.js?v=5"></script>
+  <script src="../js/utils.js?v=5"></script>
+  <script src="../js/layout.js?v=5"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+var suppliers=[], products=[], editingId=null;
+
+async function loadData() {
+  try {
+    var results = await Promise.all([
+      db.collection(COL.suppliers).orderBy("name").get(),
+      db.collection(COL.products).get()
+    ]);
+    var supSnap = results[0], prodSnap = results[1];
+    suppliers = supSnap.docs.map(function(d) { return Object.assign({id:d.id}, d.data()); });
+    products  = prodSnap.docs.map(function(d) { return Object.assign({id:d.id}, d.data()); });
+    renderSuppliers();
+    renderReorderDrafts();
+  } catch(e) {
+    console.error("Suppliers load error:", e);
+    var el = document.getElementById("suppliers-grid");
+    if (el) el.innerHTML = '<div style="color:var(--red);grid-column:1/-1;text-align:center;padding:20px">Error: ' + e.message + '<br><button class="btn btn-sm btn-outline" style="margin-top:8px" onclick="loadData()">🔄 Retry</button></div>';
+  }
+}
+
+function renderSuppliers() {
+  var el = document.getElementById("suppliers-grid");
+  if (!suppliers.length) {
+    el.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🏪</div><p>No suppliers yet. Add your first supplier!</p></div>';
+    return;
+  }
+  el.innerHTML = suppliers.map(function(s) {
+    var linked = products.filter(function(p) { return p.supplierId === s.id; });
+    var notesHtml = s.notes ? '<div style="margin-top:8px;font-size:12px;color:#555;background:var(--green-p2);padding:6px 8px;border-radius:6px">' + s.notes + '</div>' : '';
+    return '<div class="supplier-card">' +
+      '<div class="supplier-name">🏪 ' + s.name + '</div>' +
+      '<div class="supplier-info">' +
+        '📞 ' + (s.phone||"—") + '<br>' +
+        '📧 ' + (s.email||"—") + '<br>' +
+        '🗂 ' + linked.length + ' product' + (linked.length!==1?"s":"") + ' linked' +
+      '</div>' +
+      notesHtml +
+      '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">' +
+        '<button class="btn btn-sm btn-outline" onclick="openEdit(\'' + s.id + '\')">✏️ Edit</button>' +
+        '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0" onclick="draftWhatsapp(\'' + s.id + '\')">📱 WhatsApp</button>' +
+        '<button class="btn btn-sm btn-danger" onclick="deleteSupplier(\'' + s.id + '\',\'' + s.name.replace(/'/g, "\\'") + '\')">🗑️</button>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+function renderReorderDrafts() {
+  var lowStock = products.filter(function(p) { return (p.quantity/(p.maxStock||1))*100 <= 10 && p.supplierId; });
+  var el = document.getElementById("reorder-list");
+  if (!lowStock.length) {
+    el.innerHTML='<p style="color:#888;font-size:13px">No critical low-stock items with assigned suppliers.</p>';
+    return;
+  }
+  el.innerHTML = lowStock.map(function(p) {
+    var sup = suppliers.find(function(s) { return s.id === p.supplierId; });
+    var msg = 'Hi ' + (sup?sup.name:"Supplier") + ', this is a reorder request for *' + p.name + '*. Current stock: ' + p.quantity + ' units. Please send ' + (p.maxStock - p.quantity) + ' units at your earliest. Thank you!';
+    var whatsappBtn = sup && sup.phone
+      ? '<a href="https://wa.me/91' + sup.phone.replace(/\D/g,'') + '?text=' + encodeURIComponent(msg) + '" target="_blank" class="btn btn-sm" style="background:#25D366;color:#fff">📱 WhatsApp</a>'
+      : '';
+    return '<div style="background:var(--green-p2);border-radius:8px;padding:12px;margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
+        '<div>' +
+          '<div style="font-weight:700">' + p.name + '</div>' +
+          '<div style="font-size:12px;color:#555">Supplier: ' + (sup?sup.name:"Unknown") + ' · Stock: ' + p.quantity + '/' + p.maxStock + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button class="btn btn-sm btn-outline" onclick="copyMsg(\'' + msg.replace(/'/g, "\\'") + '\')">📋 Copy</button>' +
+          whatsappBtn +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+function copyMsg(msg) {
+  navigator.clipboard.writeText(msg).then(function(){showToast("Message copied!");}).catch(function(){showToast("Copy failed.","error");});
+}
+
+function draftWhatsapp(id) {
+  var sup  = suppliers.find(function(s){return s.id===id;});
+  var prods = products.filter(function(p){return p.supplierId===id;});
+  if (!prods.length) { showToast("No products linked to this supplier.","error"); return; }
+  var msg = 'Hi ' + sup.name + ', please check our reorder requirements:\n' + prods.map(function(p){return '- ' + p.name + ': need ' + (p.maxStock-p.quantity) + ' units';}).join('\n') + '\nThank you!';
+  if (sup.phone) {
+    window.open('https://wa.me/91' + sup.phone.replace(/\D/g,'') + '?text=' + encodeURIComponent(msg), '_blank');
+  } else {
+    navigator.clipboard.writeText(msg).then(function(){showToast("Message copied (no phone on file)!");});
+  }
+}
+
+function openAdd() { editingId=null; document.getElementById("sup-form").reset(); document.getElementById("sup-modal").classList.add("open"); }
+function openEdit(id) {
+  var s=suppliers.find(function(x){return x.id===id;}); if(!s) return;
+  editingId=id;
+  document.getElementById("sup-name").value  =s.name||"";
+  document.getElementById("sup-phone").value =s.phone||"";
+  document.getElementById("sup-email").value =s.email||"";
+  document.getElementById("sup-notes").value =s.notes||"";
+  document.getElementById("sup-modal").classList.add("open");
+}
+function closeModal() { document.getElementById("sup-modal").classList.remove("open"); }
+
+async function saveSupplier() {
+  var name  = document.getElementById("sup-name").value.trim();
+  var phone = document.getElementById("sup-phone").value.trim();
+  var email = document.getElementById("sup-email").value.trim();
+  var notes = document.getElementById("sup-notes").value.trim();
+  if (!name) { showToast("Supplier name is required.","error"); return; }
+  var data = { name: name, phone: phone, email: email, notes: notes, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
+  try {
+    if (editingId) { await db.collection(COL.suppliers).doc(editingId).update(data); showToast("Supplier updated!"); }
+    else { data.createdAt=firebase.firestore.FieldValue.serverTimestamp(); await db.collection(COL.suppliers).add(data); showToast("Supplier added!"); }
+    closeModal(); loadData();
+  } catch(e) { showToast("Error saving supplier.","error"); }
+}
+
+async function deleteSupplier(id,name) {
+  if (!confirmAction('Delete supplier "' + name + '"?')) return;
+  await db.collection(COL.suppliers).doc(id).delete();
+  suppliers=suppliers.filter(function(x){return x.id!==id;});
+  renderSuppliers();
+  showToast("Supplier deleted.");
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  buildLayout("Suppliers");
+
+  document.getElementById("topbar-actions").innerHTML='<button class="btn btn-primary" onclick="openAdd()">+ Add Supplier</button>';
+  document.getElementById("page-content").innerHTML=
+    '<div class="card" style="margin-bottom:18px">' +
+      '<div class="card-title">📦 Auto Reorder Drafts (Critical Low Stock)</div>' +
+      '<div id="reorder-list"><div style="color:#888">Loading…</div></div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div class="card-title">All Suppliers</div>' +
+      '<div id="suppliers-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:4px">' +
+        '<div style="color:#888">Loading…</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="modal-overlay" id="sup-modal">' +
+      '<div class="modal">' +
+        '<div class="modal-header"><h3>Supplier Details</h3><button class="modal-close" onclick="closeModal()">✕</button></div>' +
+        '<form id="sup-form">' +
+          '<div class="form-group" style="margin-bottom:12px"><label>Supplier Name *</label><input type="text" id="sup-name" placeholder="e.g. Raj Traders"/></div>' +
+          '<div class="form-grid" style="margin-bottom:12px">' +
+            '<div class="form-group"><label>Phone / WhatsApp</label><input type="text" id="sup-phone" placeholder="9876543210"/></div>' +
+            '<div class="form-group"><label>Email</label><input type="email" id="sup-email" placeholder="supplier@email.com"/></div>' +
+          '</div>' +
+          '<div class="form-group" style="margin-bottom:12px"><label>Notes</label><textarea id="sup-notes" placeholder="Product lines, payment terms, etc."></textarea></div>' +
+        '</form>' +
+        '<div class="modal-footer">' +
+          '<button class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
+          '<button class="btn btn-primary" onclick="saveSupplier()">Save Supplier</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  loadData();
+});
+</script>
+</body>
+</html>
