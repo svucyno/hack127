@@ -146,8 +146,7 @@ var CartManager = (function() {
       sgst: summary.sgst,
       totalDiscount: summary.totalDiscount,
       grandTotal: summary.grandTotal,
-      status: "Not Started",
-      isPreOrder: false,
+      status: "New",
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
 
