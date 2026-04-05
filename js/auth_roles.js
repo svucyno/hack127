@@ -26,7 +26,7 @@ var ROLE_NAV = {
   "Admin":   ["dashboard","inventory","billing","alerts","offers","reports","suppliers","customers","users"],
   "Worker":  ["dashboard","inventory","alerts","suppliers"],
   "Cashier": ["dashboard","billing","alerts","reports"],
-  "User":    ["landing","offers_user","cart","orders","notifications"]
+  "User":    ["landing","offers_user","notifications","cart","orders"]
 };
 
 var _currentUserRole = null;

@@ -53,9 +53,9 @@ function buildLayout(pageTitle) {
     { href: "../pages/users.html",       key: "Customers",   navKey: "users",       label: "Users" },
     { href: "../pages/landing.html",     key: "Landing",     navKey: "landing",     label: typeof t === 'function' ? t("nav.dashboard") : "Shop" },
     { href: "../pages/offers_user.html", key: "Shop",        navKey: "offers_user", label: typeof t === 'function' ? t("nav.offers") : "Deals" },
+    { href: "../pages/notifications.html",key: "Alerts",      navKey: "notifications",label: "Notifications" },
     { href: "../pages/cart.html",        key: "Cart",        navKey: "cart",        label: "Cart" },
     { href: "../pages/orders.html",      key: "Orders",      navKey: "orders",      label: "Orders" },
-    { href: "../pages/notifications.html",key: "Alerts",      navKey: "notifications",label: "Notifications" },
   ];
 
   // Filter nav by role
@@ -148,9 +148,9 @@ function _rebuildNav(sidebarNavEl, role) {
     { href: "../pages/users.html",       key: "Customers",   navKey: "users",       label: "Users" },
     { href: "../pages/landing.html",     key: "Landing",     navKey: "landing",     label: "Shop" },
     { href: "../pages/offers_user.html", key: "Shop",        navKey: "offers_user", label: "Deals" },
+    { href: "../pages/notifications.html",key: "Alerts",      navKey: "notifications",label: "Notifications" },
     { href: "../pages/cart.html",        key: "Cart",        navKey: "cart",        label: "Cart" },
     { href: "../pages/orders.html",      key: "Orders",      navKey: "orders",      label: "Orders" },
-    { href: "../pages/notifications.html",key: "Alerts",      navKey: "notifications",label: "Notifications" },
   ];
   var allowedKeys = typeof getNavItemsForRole === 'function' ? getNavItemsForRole(role) : [];
   var nav = allNav.filter(function(n) { return allowedKeys.indexOf(n.navKey) !== -1; });
