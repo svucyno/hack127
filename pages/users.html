@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Manage Users — ShopSmart</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase.js?v=7"></script>
+  <script src="../js/utils.js?v=7"></script>
+  <script src="../js/auth_roles.js?v=1"></script>
+  <script src="../js/i18n.js?v=1"></script>
+  <script src="../js/layout.js?v=7"></script>
+  <script src="../js/offline.js?v=1"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+var allUsers = [];
+
+async function loadUsers() {
+  try {
+    var snap = await db.collection("users").orderBy("createdAt", "desc").get();
+    allUsers = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+    renderUsers();
+  } catch(e) {
+    document.getElementById("users-list").innerHTML = '<div style="color:var(--red);text-align:center;padding:24px">Error: ' + e.message + '</div>';
+  }
+}
+
+function renderUsers() {
+  var el = document.getElementById("users-list");
+  if (!allUsers.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div><p>No users found.</p></div>';
+    return;
+  }
+
+  var workers = allUsers.filter(function(u) { return u.role === "Worker"; });
+  var cashiers = allUsers.filter(function(u) { return u.role === "Cashier"; });
+  var admins = allUsers.filter(function(u) { return u.role === "Admin"; });
+  var customers = allUsers.filter(function(u) { return u.role === "User"; });
+
+  function renderGroup(title, icon, users, badgeClass) {
+    if (!users.length) return '<div style="margin-bottom:20px"><h3 style="font-size:14px;color:var(--text-2);margin-bottom:8px">' + icon + ' ' + title + ' (0)</h3><div style="color:#888;font-size:13px;padding:8px 0">None</div></div>';
+    return '<div style="margin-bottom:20px"><h3 style="font-size:14px;color:var(--text-2);margin-bottom:10px">' + icon + ' ' + title + ' (' + users.length + ')</h3>' +
+      users.map(function(u) {
+        var dateStr = u.createdAt && u.createdAt.toDate ? u.createdAt.toDate().toLocaleDateString("en-IN") : "—";
+        var lastLogin = u.lastLogin && u.lastLogin.toDate ? u.lastLogin.toDate().toLocaleDateString("en-IN", {hour:"2-digit",minute:"2-digit"}) : "Never";
+        return '<div style="display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--card-bg);border-radius:12px;box-shadow:var(--shadow);border:1px solid var(--border);margin-bottom:8px">' +
+          '<div style="width:40px;height:40px;border-radius:50%;background:var(--card-bg);box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--cyan);font-size:16px;border:1px solid var(--border);flex-shrink:0">' + (u.name || u.email || "?").charAt(0).toUpperCase() + '</div>' +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-weight:700;font-size:13px;color:var(--text)">' + (u.name || "—") + '</div>' +
+            '<div style="font-size:11px;color:var(--text-3)">' + (u.email || "—") + '</div>' +
+          '</div>' +
+          '<div style="text-align:right">' +
+            '<span class="badge ' + badgeClass + '" style="font-size:10px">' + u.role + '</span>' +
+            '<div style="font-size:10px;color:var(--text-3);margin-top:4px">Last: ' + lastLogin + '</div>' +
+          '</div>' +
+          (u.role !== "Admin" ? '<button class="btn-icon" title="Delete user" onclick="deleteUser(\'' + u.id + '\',\'' + (u.name || u.email || "").replace(/'/g,"\\'") + '\')">🗑️</button>' : '') +
+        '</div>';
+      }).join("") + '</div>';
+  }
+
+  el.innerHTML =
+    renderGroup("Admins", "👑", admins, "badge-blue") +
+    renderGroup("Workers", "📦", workers, "badge-yellow") +
+    renderGroup("Cashiers", "💳", cashiers, "badge-green") +
+    renderGroup("Customers", "🛒", customers, "badge-grey");
+}
+
+async function deleteUser(uid, name) {
+  if (!confirmAction('Remove user "' + name + '"? This only removes their role — they can still log in but will default to Customer.')) return;
+  try {
+    await db.collection("users").doc(uid).update({ role: "User" });
+    showToast(name + " demoted to Customer.");
+    loadUsers();
+  } catch(e) { showToast("Error: " + e.message, "error"); }
+}
+
+function openCreateModal(role) {
+  document.getElementById("create-role").value = role;
+  document.getElementById("create-role-label").textContent = role;
+  document.getElementById("create-name").value = "";
+  document.getElementById("create-email").value = "";
+  document.getElementById("create-pass").value = "";
+  document.getElementById("create-modal").classList.add("open");
+
+  // Show access info
+  var accessMap = {
+    "Worker": ["Dashboard", "Inventory", "Alerts", "Suppliers"],
+    "Cashier": ["Dashboard", "Billing", "Alerts", "Reports"]
+  };
+  var pages = accessMap[role] || [];
+  document.getElementById("access-list").innerHTML = pages.map(function(p) {
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:13px">' +
+      '<span style="color:var(--mint);font-size:16px">✅</span> ' + p +
+    '</div>';
+  }).join("");
+}
+
+function closeCreateModal() {
+  document.getElementById("create-modal").classList.remove("open");
+}
+
+async function createStaffAccount() {
+  var role  = document.getElementById("create-role").value;
+  var name  = document.getElementById("create-name").value.trim();
+  var email = document.getElementById("create-email").value.trim();
+  var pass  = document.getElementById("create-pass").value;
+  var errEl = document.getElementById("create-error");
+  var btn   = document.getElementById("create-btn");
+
+  errEl.style.display = "none";
+  if (!name || !email || !pass) { errEl.textContent = "Fill all fields."; errEl.style.display = "block"; return; }
+  if (pass.length < 6) { errEl.textContent = "Password must be at least 6 characters."; errEl.style.display = "block"; return; }
+
+  btn.disabled = true; btn.textContent = "Creating…";
+
+  // We need to create the account via a secondary Firebase Auth instance
+  // so we don't log out the current admin
+  try {
+    var secondaryApp;
+    try { secondaryApp = firebase.app("secondary"); } catch(e) {
+      secondaryApp = firebase.initializeApp(firebaseConfig, "secondary");
+    }
+    var secondaryAuth = secondaryApp.auth();
+
+    var cred = await secondaryAuth.createUserWithEmailAndPassword(email, pass);
+    await cred.user.updateProfile({ displayName: name });
+
+    // Save user doc in main Firestore
+    await db.collection("users").doc(cred.user.uid).set({
+      uid: cred.user.uid,
+      name: name,
+      email: email,
+      role: role,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      lastLogin: null
+    });
+
+    // Sign out from secondary app (don't affect admin session)
+    await secondaryAuth.signOut();
+
+    showToast(role + " account created for " + name + "!");
+    closeCreateModal();
+    loadUsers();
+  } catch(e) {
+    errEl.textContent = e.message || "Failed to create account.";
+    errEl.style.display = "block";
+  } finally {
+    btn.disabled = false; btn.textContent = "Create Account";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  buildLayout("👥 Manage Users");
+
+  document.getElementById("page-content").innerHTML =
+    // Action buttons
+    '<div style="display:flex;gap:12px;margin-bottom:18px;flex-wrap:wrap">' +
+      '<button class="btn btn-primary" onclick="openCreateModal(\'Worker\')">📦 Add Worker</button>' +
+      '<button class="btn btn-accent" onclick="openCreateModal(\'Cashier\')">💳 Add Cashier</button>' +
+    '</div>' +
+
+    // Users list
+    '<div class="card">' +
+      '<div class="card-title">👥 All Users</div>' +
+      '<div id="users-list"><div style="text-align:center;padding:24px;color:#888">Loading…</div></div>' +
+    '</div>' +
+
+    // Create modal
+    '<div class="modal-overlay" id="create-modal">' +
+      '<div class="modal" style="max-width:440px">' +
+        '<div class="modal-header">' +
+          '<h3>Create <span id="create-role-label">Worker</span> Account</h3>' +
+          '<button class="modal-close" onclick="closeCreateModal()">✕</button>' +
+        '</div>' +
+        '<div id="create-error" style="display:none;background:#FFCDD2;color:#C62828;padding:10px 14px;border-radius:7px;font-size:13px;margin-bottom:14px"></div>' +
+        '<input type="hidden" id="create-role" value="Worker"/>' +
+        '<div class="form-group" style="margin-bottom:12px"><label>Full Name *</label><input type="text" id="create-name" placeholder="e.g. Ravi Kumar"/></div>' +
+        '<div class="form-group" style="margin-bottom:12px"><label>Email *</label><input type="email" id="create-email" placeholder="worker@myshop.com"/></div>' +
+        '<div class="form-group" style="margin-bottom:16px"><label>Password *</label><input type="password" id="create-pass" placeholder="Min 6 characters"/></div>' +
+        '<div style="margin-bottom:16px;padding:12px;background:var(--card-bg);border-radius:10px;box-shadow:var(--shadow-inset);border:1px solid var(--border)">' +
+          '<div style="font-size:12px;font-weight:700;color:var(--text-2);margin-bottom:8px">📋 This role will have access to:</div>' +
+          '<div id="access-list"></div>' +
+        '</div>' +
+        '<div class="modal-footer">' +
+          '<button class="btn btn-outline" onclick="closeCreateModal()">Cancel</button>' +
+          '<button class="btn btn-primary" id="create-btn" onclick="createStaffAccount()">Create Account</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  loadUsers();
+});
+</script>
+</body>
+</html>

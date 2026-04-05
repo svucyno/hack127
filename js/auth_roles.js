@@ -12,16 +12,17 @@ var PAGE_PERMISSIONS = {
   "reports.html":    ["Admin", "Cashier"],
   "suppliers.html":  ["Admin", "Worker"],
   "customers.html":  ["Admin"],
-  "landing.html":    ["User", "Admin"],
-  "offers_user.html":["User", "Admin"],
-  "cart.html":       ["User", "Admin"],
-  "orders.html":     ["User", "Admin"]
+  "users.html":      ["Admin"],
+  "landing.html":    ["User"],
+  "offers_user.html":["User"],
+  "cart.html":       ["User"],
+  "orders.html":     ["User"]
 };
 
 var ROLE_DEFAULT_PAGE = { "Admin":"dashboard.html", "Worker":"dashboard.html", "Cashier":"dashboard.html", "User":"landing.html" };
 
 var ROLE_NAV = {
-  "Admin":   ["dashboard","inventory","billing","alerts","offers","reports","suppliers","customers"],
+  "Admin":   ["dashboard","inventory","billing","alerts","offers","reports","suppliers","customers","users"],
   "Worker":  ["dashboard","inventory","alerts","suppliers"],
   "Cashier": ["dashboard","billing","alerts","reports"],
   "User":    ["landing","offers_user","cart","orders"]
