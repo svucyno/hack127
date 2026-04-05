@@ -1,4 +1,129 @@
 var products = [], cart = [], activeOffers = [];
+var billingCustomer = null;   // linked customer doc
+var appliedCoupon = null;     // coupon object from customer
+var redeemPoints = 0;         // points being redeemed
+var isWalkIn = false;         // walk-in toggle
+
+async function lookupCustomer(phone) {
+  var infoEl = document.getElementById("cust-info");
+  var couponEl = document.getElementById("cust-coupon-area");
+  var pointsEl = document.getElementById("cust-points-area");
+  if (!phone || phone.length < 3) {
+    billingCustomer = null; appliedCoupon = null; redeemPoints = 0;
+    if (infoEl) infoEl.innerHTML = "";
+    if (couponEl) couponEl.innerHTML = "";
+    if (pointsEl) pointsEl.innerHTML = "";
+    renderCart();
+    return;
+  }
+  try {
+    var snap = await db.collection(COL.customers).where("phone", "==", phone).get();
+    if (!snap.empty) {
+      var doc = snap.docs[0];
+      billingCustomer = Object.assign({ id: doc.id }, doc.data());
+      var tier = getTier(billingCustomer.lifetimePoints);
+      var tierClass = tier.name.toLowerCase();
+      var activeCoupons = (billingCustomer.coupons || []).filter(function(cp) {
+        return !cp.used && cp.expiresAt >= today();
+      });
+
+      if (infoEl) {
+        infoEl.innerHTML =
+          '<div class="customer-billing-info">' +
+            '<span style="font-weight:700;font-size:14px">' + billingCustomer.name + '</span>' +
+            '<span class="tier-badge ' + tierClass + '">' + tier.name + '</span>' +
+            '<span class="points-display"><span class="points-coin">🪙</span> ' + fmtNum(billingCustomer.loyaltyPoints || 0) + ' pts</span>' +
+          '</div>';
+      }
+
+      // Coupons dropdown
+      if (couponEl) {
+        if (activeCoupons.length > 0) {
+          couponEl.innerHTML =
+            '<div style="margin-top:8px">' +
+              '<label style="font-size:12px;font-weight:600">Apply Coupon</label>' +
+              '<select id="coupon-select" onchange="applyCoupon()" style="margin-top:4px">' +
+                '<option value="">— None —</option>' +
+                activeCoupons.map(function(cp, idx) {
+                  var discLabel = cp.type === "percentage" ? cp.discount + "% OFF" : "₹" + cp.discount + " OFF";
+                  return '<option value="' + idx + '">' + cp.code + ' — ' + discLabel + (cp.minPurchase ? ' (min ₹' + cp.minPurchase + ')' : '') + '</option>';
+                }).join("") +
+              '</select>' +
+            '</div>';
+        } else {
+          couponEl.innerHTML = '<div style="font-size:11px;color:var(--text-3);margin-top:6px">No active coupons.</div>';
+        }
+      }
+
+      // Points redeem area
+      if (pointsEl && (billingCustomer.loyaltyPoints || 0) >= MIN_REDEEM_POINTS) {
+        pointsEl.innerHTML =
+          '<div class="customer-reward-section">' +
+            '<label style="font-size:12px;font-weight:600">Redeem Points (balance: ' + (billingCustomer.loyaltyPoints || 0) + ')</label>' +
+            '<div class="redeem-input-wrap">' +
+              '<input type="number" id="redeem-input" placeholder="0" min="0" max="' + (billingCustomer.loyaltyPoints || 0) + '" oninput="updateRedeem()"/>' +
+              '<span style="font-size:12px;color:var(--text-2)" id="redeem-value">= ₹0</span>' +
+            '</div>' +
+          '</div>';
+      } else if (pointsEl) {
+        pointsEl.innerHTML = '';
+      }
+    } else {
+      billingCustomer = null;
+      if (infoEl) {
+        infoEl.innerHTML = '<div style="font-size:13px;color:var(--accent);padding:8px 0">📌 New customer — will be saved after billing.</div>';
+      }
+      if (couponEl) couponEl.innerHTML = "";
+      if (pointsEl) pointsEl.innerHTML = "";
+    }
+  } catch(e) {
+    console.error("Customer lookup error:", e);
+  }
+}
+
+function applyCoupon() {
+  var sel = document.getElementById("coupon-select");
+  if (!sel || !billingCustomer) { appliedCoupon = null; renderCart(); return; }
+  var idx = sel.value;
+  if (idx === "") { appliedCoupon = null; renderCart(); return; }
+  var activeCoupons = (billingCustomer.coupons || []).filter(function(cp) { return !cp.used && cp.expiresAt >= today(); });
+  appliedCoupon = activeCoupons[parseInt(idx)] || null;
+  renderCart();
+}
+
+function updateRedeem() {
+  var input = document.getElementById("redeem-input");
+  var label = document.getElementById("redeem-value");
+  if (!input) return;
+  var val = parseInt(input.value) || 0;
+  var max = billingCustomer ? (billingCustomer.loyaltyPoints || 0) : 0;
+  if (val > max) { val = max; input.value = val; }
+  if (val < 0) { val = 0; input.value = 0; }
+  redeemPoints = val;
+  if (label) label.textContent = "= ₹" + (val * POINT_VALUE);
+  renderCart();
+}
+
+function toggleWalkIn() {
+  var cb = document.getElementById("walkin-toggle");
+  isWalkIn = cb ? cb.checked : false;
+  var phoneInput = document.getElementById("cust-phone");
+  var infoEl = document.getElementById("cust-info");
+  var couponEl = document.getElementById("cust-coupon-area");
+  var pointsEl = document.getElementById("cust-points-area");
+  if (isWalkIn) {
+    billingCustomer = null; appliedCoupon = null; redeemPoints = 0;
+    if (phoneInput) { phoneInput.disabled = true; phoneInput.value = ""; }
+    if (infoEl) infoEl.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:6px 0">Walk-in customer — no loyalty tracking.</div>';
+    if (couponEl) couponEl.innerHTML = "";
+    if (pointsEl) pointsEl.innerHTML = "";
+  } else {
+    if (phoneInput) { phoneInput.disabled = false; }
+    if (infoEl) infoEl.innerHTML = "";
+  }
+  renderCart();
+}
+
 
 async function loadProducts() {
   try {

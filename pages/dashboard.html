@@ -30,13 +30,14 @@ async function loadDashboard() {
   var salesSnap = await db.collection(COL.sales)
     .where("date", "==", todayStr).get();
 
-  var todayCustomers = new Set(), todayItems = 0, todayRevenue = 0, todayProfit = 0;
+  var todayCustomers = new Set(), todayItems = 0, todayRevenue = 0, todayProfit = 0, todayPointsIssued = 0;
   salesSnap.forEach(function(d) {
     var s = d.data();
     todayCustomers.add(s.billId);
     (s.items || []).forEach(function(i) { todayItems += i.qty; });
     todayRevenue += s.grandTotal || 0;
     todayProfit  += s.profit || 0;
+    todayPointsIssued += s.pointsEarned || 0;
   });
 
   // Fetch 30-day sales for graph
@@ -58,7 +59,7 @@ async function loadDashboard() {
     profitData.push(+(dayMap[ds] || 0).toFixed(2));
   }
 
-  // Top sellers
+   // Top sellers
   var prodsSnap = await db.collection(COL.products).orderBy("salesCount30","desc").limit(5).get();
   var topSellers = prodsSnap.docs.map(function(d) { return { name: d.data().name, count: d.data().salesCount30 || 0 }; });
 
@@ -75,6 +76,13 @@ async function loadDashboard() {
     var th = getExpiryThresholds(p.category);
     if (p.expiryDate && daysUntil(p.expiryDate) <= th.urgent) expiryCount++;
   });
+
+  // Top customers this month
+  var topCustomers = [];
+  try {
+    var custSnap = await db.collection(COL.customers).orderBy("totalSpent", "desc").limit(5).get();
+    topCustomers = custSnap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+  } catch(e) { console.error("Top customers error:", e); }
 
   // Category sales pie
   var catMap = {};
@@ -116,6 +124,11 @@ async function loadDashboard() {
         '<div class="kpi-value" style="color:#F9A825">' + alertCount + '</div>' +
         '<div class="kpi-sub">' + lowStockCount + ' low stock · ' + expiryCount + ' expiry</div>' +
       '</div>' +
+      '<div class="kpi-card" style="border-left-color:#cd7f32">' +
+        '<div class="kpi-label">Points Issued Today</div>' +
+        '<div class="kpi-value" style="font-size:21px">🪙 ' + fmtNum(todayPointsIssued) + '</div>' +
+        '<div class="kpi-sub">Loyalty points</div>' +
+      '</div>' +
     '</div>' +
 
     '<!-- Charts row -->' +
@@ -139,7 +152,7 @@ async function loadDashboard() {
     '</div>' +
 
     '<!-- Top sellers + Alerts -->' +
-    '<div class="grid-2">' +
+    '<div class="grid-2" style="margin-bottom:18px">' +
       '<div class="card">' +
         '<div class="card-title">🏆 Top Selling Products</div>' +
         '<div id="top-sellers">' +
@@ -162,6 +175,27 @@ async function loadDashboard() {
             ? '<div class="empty-state"><div class="empty-icon">✅</div><p>No active alerts. All good!</p></div>'
             : "Loading…") +
         '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<!-- Top Customers -->' +
+    '<div class="card">' +
+      '<div class="card-title">👑 Top Customers by Spend</div>' +
+      '<div id="top-customers">' +
+        (topCustomers.length === 0
+          ? '<div class="empty-state"><div class="empty-icon">👤</div><p>No customer data yet.</p></div>'
+          : topCustomers.map(function(c, i) {
+              var tier = getTier(c.lifetimePoints);
+              var tierClass = tier.name.toLowerCase();
+              var icons = ["🥇","🥈","🥉","4️⃣","5️⃣"];
+              return '<div class="top-customer-item">' +
+                '<span style="font-size:18px;width:28px;text-align:center">' + icons[i] + '</span>' +
+                '<span style="flex:1;font-weight:600">' + (c.name || "Unknown") + '</span>' +
+                '<span class="tier-badge ' + tierClass + '" style="font-size:10px;padding:3px 10px">' + tier.name + '</span>' +
+                '<span class="points-display" style="font-size:12px"><span class="points-coin">🪙</span> ' + fmtNum(c.loyaltyPoints || 0) + '</span>' +
+                '<span class="badge badge-green">' + fmtCurrency(c.totalSpent || 0) + '</span>' +
+              '</div>';
+            }).join("")) +
       '</div>' +
     '</div>';
 

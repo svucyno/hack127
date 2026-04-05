@@ -21,6 +21,7 @@ var COL = {
   alerts    : "alerts",
   offers    : "offers",
   suppliers : "suppliers",
+  customers : "customers",
 };
 
 // ── Auth helpers (no-op for testing) ───────────────────────────────────────

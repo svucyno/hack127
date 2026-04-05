@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Customers — ShopSmart</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase.js?v=6"></script>
+  <script src="../js/utils.js?v=6"></script>
+  <script src="../js/layout.js?v=6"></script>
+</head>
+<body>
+<div id="app"></div>
+
+<!-- Add Customer Modal -->
+<div class="modal-overlay" id="add-customer-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Add New Customer</h3>
+      <button class="modal-close" onclick="closeAddModal()">&times;</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Customer Name *</label>
+        <input type="text" id="new-cust-name" placeholder="Full name"/>
+      </div>
+      <div class="form-group">
+        <label>Phone Number * (10 digits)</label>
+        <input type="text" id="new-cust-phone" placeholder="9876543210" maxlength="10"/>
+      </div>
+      <div class="form-group">
+        <label>Email (optional)</label>
+        <input type="email" id="new-cust-email" placeholder="email@example.com"/>
+      </div>
+      <div class="form-group">
+        <label>Birthday (optional)</label>
+        <input type="date" id="new-cust-birthday"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeAddModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNewCustomer()">💾 Save Customer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Adjust Points Modal -->
+<div class="modal-overlay" id="adjust-points-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Adjust Points</h3>
+      <button class="modal-close" onclick="closeAdjustModal()">&times;</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Action</label>
+        <select id="adjust-action">
+          <option value="add">Add Points</option>
+          <option value="deduct">Deduct Points</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Points</label>
+        <input type="number" id="adjust-amount" placeholder="0" min="1"/>
+      </div>
+      <div class="form-group full">
+        <label>Reason</label>
+        <input type="text" id="adjust-reason" placeholder="Reason for adjustment"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeAdjustModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmAdjustPoints()">✅ Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- Issue Coupon Modal -->
+<div class="modal-overlay" id="issue-coupon-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>Issue Manual Coupon</h3>
+      <button class="modal-close" onclick="closeIssueCouponModal()">&times;</button>
+    </div>
+    <div class="form-grid">
+      <div class="form-group">
+        <label>Discount Type</label>
+        <select id="coupon-type">
+          <option value="percentage">Percentage (%)</option>
+          <option value="flat">Flat (₹)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Discount Value</label>
+        <input type="number" id="coupon-value" placeholder="10" min="1"/>
+      </div>
+      <div class="form-group">
+        <label>Min Purchase (₹)</label>
+        <input type="number" id="coupon-min" placeholder="0" min="0"/>
+      </div>
+      <div class="form-group">
+        <label>Valid Days</label>
+        <input type="number" id="coupon-days" placeholder="30" min="1" value="30"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeIssueCouponModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmIssueCoupon()">🎫 Issue Coupon</button>
+    </div>
+  </div>
+</div>
+
+<script>
+var allCustomers = [];
+var currentSort = "totalSpent";
+var expandedCustomerId = null;
+var adjustCustomerId = null;
+var issueCouponCustomerId = null;
+
+async function loadCustomersPage() {
+  var content = document.getElementById("page-content");
+  content.innerHTML = '<div style="text-align:center;padding:40px;color:#888">Loading customers…</div>';
+
+  try {
+    var snap = await db.collection(COL.customers).get();
+    allCustomers = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+
+    // KPI calculations
+    var totalCustomers = allCustomers.length;
+    var now = new Date();
+    var thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    var activeThisMonth = allCustomers.filter(function(c) {
+      if (!c.lastVisit) return false;
+      return new Date(c.lastVisit) >= thirtyDaysAgo;
+    }).length;
+    var avgSpend = totalCustomers > 0 ? allCustomers.reduce(function(s, c) { return s + (c.totalSpent || 0); }, 0) / totalCustomers : 0;
+    var totalPoints = allCustomers.reduce(function(s, c) { return s + (c.loyaltyPoints || 0); }, 0);
+
+    content.innerHTML =
+      '<!-- KPI Row -->' +
+      '<div class="kpi-grid">' +
+        '<div class="kpi-card">' +
+          '<div class="kpi-label">Total Customers</div>' +
+          '<div class="kpi-value">' + fmtNum(totalCustomers) + '</div>' +
+          '<div class="kpi-sub">Registered</div>' +
+        '</div>' +
+        '<div class="kpi-card accent">' +
+          '<div class="kpi-label">Active This Month</div>' +
+          '<div class="kpi-value">' + fmtNum(activeThisMonth) + '</div>' +
+          '<div class="kpi-sub">Last 30 days</div>' +
+        '</div>' +
+        '<div class="kpi-card blue">' +
+          '<div class="kpi-label">Average Spend</div>' +
+          '<div class="kpi-value" style="font-size:21px">' + fmtCurrency(avgSpend) + '</div>' +
+          '<div class="kpi-sub">Per customer</div>' +
+        '</div>' +
+        '<div class="kpi-card yellow">' +
+          '<div class="kpi-label">Points Outstanding</div>' +
+          '<div class="kpi-value" style="font-size:21px">🪙 ' + fmtNum(totalPoints) + '</div>' +
+          '<div class="kpi-sub">Redeemable balance</div>' +
+        '</div>' +
+      '</div>' +
+
+      '<!-- Search + Actions -->' +
+      '<div class="card" style="margin-bottom:18px">' +
+        '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
+          '<div class="search-input-wrap" style="flex:1;min-width:200px">' +
+            '<span class="search-icon">🔍</span>' +
+            '<input type="text" id="cust-search" placeholder="Search by name or phone..." oninput="filterCustomers()"/>' +
+          '</div>' +
+          '<select id="cust-sort" onchange="currentSort=this.value;renderCustomerTable()" style="max-width:180px">' +
+            '<option value="totalSpent">Most Spent</option>' +
+            '<option value="totalVisits">Most Visits</option>' +
+            '<option value="loyaltyPoints">Most Points</option>' +
+            '<option value="lastVisit">Recent Visit</option>' +
+          '</select>' +
+          '<button class="btn btn-primary" onclick="openAddModal()">➕ Add Customer</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<!-- Customer Table -->' +
+      '<div class="card" style="padding:0;overflow:hidden">' +
+        '<div class="table-wrap" id="cust-table-wrap">' +
+          '<table><thead><tr>' +
+            '<th>Name</th><th>Phone</th><th>Tier</th><th>Visits</th>' +
+            '<th>Total Spent</th><th>Points</th><th>Last Visit</th>' +
+          '</tr></thead>' +
+          '<tbody id="cust-tbody"></tbody></table>' +
+        '</div>' +
+      '</div>' +
+
+      '<!-- Detail Panel -->' +
+      '<div id="customer-detail-area"></div>';
+
+    renderCustomerTable();
+    // Run customer alert engine in background
+    runCustomerAlertEngine().catch(function(){});
+  } catch(e) {
+    console.error("Load customers error:", e);
+    content.innerHTML = '<div class="card" style="text-align:center;padding:40px">' +
+      '<div style="font-size:36px;margin-bottom:12px">⚠️</div>' +
+      '<div style="font-weight:700;margin-bottom:8px;color:var(--red)">Failed to load customers</div>' +
+      '<div style="font-size:13px;color:#888;margin-bottom:16px">' + (e.message || e) + '</div>' +
+      '<button class="btn btn-primary" onclick="loadCustomersPage()">🔄 Retry</button>' +
+    '</div>';
+  }
+}
+
+function filterCustomers() {
+  renderCustomerTable();
+}
+
+function renderCustomerTable() {
+  var q = (document.getElementById("cust-search") || {}).value || "";
+  var list = allCustomers;
+  if (q) {
+    var ql = q.toLowerCase();
+    list = list.filter(function(c) {
+      return (c.name || "").toLowerCase().indexOf(ql) !== -1 || (c.phone || "").indexOf(q) !== -1;
+    });
+  }
+  // Sort
+  list = list.slice().sort(function(a, b) {
+    if (currentSort === "totalSpent") return (b.totalSpent || 0) - (a.totalSpent || 0);
+    if (currentSort === "totalVisits") return (b.totalVisits || 0) - (a.totalVisits || 0);
+    if (currentSort === "loyaltyPoints") return (b.loyaltyPoints || 0) - (a.loyaltyPoints || 0);
+    if (currentSort === "lastVisit") return (b.lastVisit || "").localeCompare(a.lastVisit || "");
+    return 0;
+  });
+
+  var tbody = document.getElementById("cust-tbody");
+  if (!tbody) return;
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:32px;color:#888">No customers found.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(function(c) {
+    var tier = getTier(c.lifetimePoints);
+    var tierClass = tier.name.toLowerCase();
+    return '<tr class="customer-row" onclick="toggleDetail(\'' + c.id + '\')">' +
+      '<td style="font-weight:600">' + (c.name || "—") + '</td>' +
+      '<td>' + (c.phone || "—") + '</td>' +
+      '<td><span class="tier-badge ' + tierClass + '">' + tier.name + '</span></td>' +
+      '<td>' + fmtNum(c.totalVisits || 0) + '</td>' +
+      '<td>' + fmtCurrency(c.totalSpent || 0) + '</td>' +
+      '<td><span class="points-display"><span class="points-coin">🪙</span> ' + fmtNum(c.loyaltyPoints || 0) + '</span></td>' +
+      '<td>' + fmtDate(c.lastVisit) + '</td>' +
+    '</tr>';
+  }).join("");
+}
+
+async function toggleDetail(custId) {
+  var area = document.getElementById("customer-detail-area");
+  if (expandedCustomerId === custId) {
+    expandedCustomerId = null;
+    area.innerHTML = "";
+    return;
+  }
+  expandedCustomerId = custId;
+  var cust = allCustomers.find(function(c) { return c.id === custId; });
+  if (!cust) return;
+  area.innerHTML = '<div style="text-align:center;padding:20px;color:#888">Loading details…</div>';
+
+  // Fetch purchase history
+  var salesSnap = await db.collection(COL.sales).where("customerPhone", "==", cust.phone).orderBy("createdAt", "desc").limit(10).get().catch(function() { return { docs: [] }; });
+  var purchases = salesSnap.docs ? salesSnap.docs.map(function(d) { return d.data(); }) : [];
+
+  var tier = getTier(cust.lifetimePoints);
+  var tierClass = tier.name.toLowerCase();
+  var progressPct = 0;
+  if (tier.nextTier) {
+    var range = tier.nextMin - tier.currentMin;
+    var current = (cust.lifetimePoints || 0) - tier.currentMin;
+    progressPct = range > 0 ? Math.min(100, Math.round((current / range) * 100)) : 100;
+  } else {
+    progressPct = 100;
+  }
+
+  var coupons = (cust.coupons || []).filter(function(cp) { return !cp.used && cp.expiresAt >= today(); });
+  var usedCoupons = (cust.coupons || []).filter(function(cp) { return cp.used; });
+
+  area.innerHTML =
+    '<div class="customer-detail-panel">' +
+      '<div class="customer-detail-header">' +
+        '<div class="customer-avatar-lg">' + (cust.name || "?").charAt(0).toUpperCase() + '</div>' +
+        '<div style="flex:1">' +
+          '<div style="font-size:18px;font-weight:800;color:var(--text)">' + (cust.name || "Unknown") + '</div>' +
+          '<div style="font-size:13px;color:var(--text-2);margin-top:2px">📱 ' + (cust.phone || "—") + (cust.email ? ' · ✉️ ' + cust.email : '') + (cust.birthday ? ' · 🎂 ' + fmtDate(cust.birthday) : '') + '</div>' +
+          '<div style="margin-top:6px;display:flex;align-items:center;gap:10px">' +
+            '<span class="tier-badge ' + tierClass + '">' + tier.name + '</span>' +
+            '<span class="points-display"><span class="points-coin">🪙</span> ' + fmtNum(cust.loyaltyPoints || 0) + ' pts</span>' +
+            '<span style="font-size:12px;color:var(--text-3)">Lifetime: ' + fmtNum(cust.lifetimePoints || 0) + ' pts</span>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px">' +
+          '<button class="btn btn-sm btn-outline" onclick="openAdjustModal(\'' + cust.id + '\')">⚖️ Adjust Points</button>' +
+          '<button class="btn btn-sm btn-accent" onclick="openIssueCouponModal(\'' + cust.id + '\')">🎫 Issue Coupon</button>' +
+        '</div>' +
+      '</div>' +
+
+      '<!-- Tier Progress -->' +
+      '<div class="tier-progress-wrap">' +
+        '<div class="tier-progress-labels">' +
+          '<span>' + tier.name + (tier.nextTier ? '' : ' (Max)') + '</span>' +
+          '<span>' + (tier.nextTier ? tier.pointsToNext + ' pts to ' + tier.nextTier : '🏆 Top Tier') + '</span>' +
+        '</div>' +
+        '<div class="tier-progress-bar"><div class="tier-progress-fill" style="width:' + progressPct + '%"></div></div>' +
+      '</div>' +
+
+      '<!-- Tabs -->' +
+      '<div class="customer-detail-tabs">' +
+        '<button class="customer-detail-tab active" onclick="showTab(\'purchases\',this)">📋 Purchases</button>' +
+        '<button class="customer-detail-tab" onclick="showTab(\'coupons\',this)">🎫 Coupons (' + coupons.length + ')</button>' +
+      '</div>' +
+
+      '<div class="customer-detail-content" id="detail-tab-content">' +
+        renderPurchasesTab(purchases) +
+      '</div>' +
+    '</div>';
+
+  // Stash for tab switching
+  window._custDetailPurchases = purchases;
+  window._custDetailCoupons = coupons;
+  window._custDetailUsedCoupons = usedCoupons;
+}
+
+function showTab(tab, btnEl) {
+  document.querySelectorAll(".customer-detail-tab").forEach(function(b) { b.classList.remove("active"); });
+  if (btnEl) btnEl.classList.add("active");
+  var el = document.getElementById("detail-tab-content");
+  if (!el) return;
+  if (tab === "purchases") {
+    el.innerHTML = renderPurchasesTab(window._custDetailPurchases || []);
+  } else if (tab === "coupons") {
+    el.innerHTML = renderCouponsTab(window._custDetailCoupons || [], window._custDetailUsedCoupons || []);
+  }
+}
+
+function renderPurchasesTab(purchases) {
+  if (!purchases.length) return '<div class="empty-state" style="padding:24px"><div class="empty-icon">📋</div><p>No purchase history yet.</p></div>';
+  return '<div class="table-wrap"><table><thead><tr><th>Bill ID</th><th>Date</th><th>Items</th><th>Total</th></tr></thead><tbody>' +
+    purchases.map(function(s) {
+      var itemCount = (s.items || []).reduce(function(sum, i) { return sum + i.qty; }, 0);
+      return '<tr><td style="font-size:12px;font-family:monospace">' + (s.billId || "—") + '</td>' +
+        '<td>' + fmtDate(s.date) + '</td>' +
+        '<td>' + itemCount + ' items</td>' +
+        '<td style="font-weight:600">' + fmtCurrency(s.grandTotal || 0) + '</td></tr>';
+    }).join("") +
+  '</tbody></table></div>';
+}
+
+function renderCouponsTab(active, used) {
+  var html = '<div style="margin-bottom:12px;font-weight:700;font-size:13px;color:var(--text)">Active Coupons</div>';
+  if (!active.length) {
+    html += '<div style="color:var(--text-3);font-size:13px;padding:10px 0">No active coupons.</div>';
+  } else {
+    html += '<div class="coupon-grid">' + active.map(function(cp) {
+      var discLabel = cp.type === "percentage" ? cp.discount + "% OFF" : "₹" + cp.discount + " OFF";
+      return '<div class="coupon-card">' +
+        '<div class="coupon-discount">' + discLabel + '</div>' +
+        '<div class="coupon-code">' + cp.code + '</div>' +
+        '<div class="coupon-reason">' + (cp.reason || "") + '</div>' +
+        '<div class="coupon-meta">Min: ' + fmtCurrency(cp.minPurchase || 0) + ' · Expires: ' + fmtDate(cp.expiresAt) + '</div>' +
+      '</div>';
+    }).join("") + '</div>';
+  }
+  if (used.length) {
+    html += '<div style="margin:16px 0 12px;font-weight:700;font-size:13px;color:var(--text-3)">Used Coupons</div>';
+    html += '<div class="coupon-grid">' + used.map(function(cp) {
+      var discLabel = cp.type === "percentage" ? cp.discount + "% OFF" : "₹" + cp.discount + " OFF";
+      return '<div class="coupon-card used">' +
+        '<div class="coupon-discount">' + discLabel + '</div>' +
+        '<div class="coupon-code">' + cp.code + '</div>' +
+        '<div class="coupon-reason">' + (cp.reason || "") + ' ✓ Used</div>' +
+      '</div>';
+    }).join("") + '</div>';
+  }
+  return html;
+}
+
+// ── Add Customer Modal ────────────────────────────────────────────────
+function openAddModal() {
+  document.getElementById("add-customer-modal").classList.add("open");
+}
+function closeAddModal() {
+  document.getElementById("add-customer-modal").classList.remove("open");
+  document.getElementById("new-cust-name").value = "";
+  document.getElementById("new-cust-phone").value = "";
+  document.getElementById("new-cust-email").value = "";
+  document.getElementById("new-cust-birthday").value = "";
+}
+
+async function saveNewCustomer() {
+  var name = document.getElementById("new-cust-name").value.trim();
+  var phone = document.getElementById("new-cust-phone").value.trim();
+  var email = document.getElementById("new-cust-email").value.trim();
+  var birthday = document.getElementById("new-cust-birthday").value;
+
+  if (!name) { showToast("Name is required.", "error"); return; }
+  if (!/^\d{10}$/.test(phone)) { showToast("Enter a valid 10-digit phone number.", "error"); return; }
+
+  // Check duplicate phone
+  var existing = await db.collection(COL.customers).where("phone", "==", phone).get();
+  if (!existing.empty) { showToast("Customer with this phone already exists.", "error"); return; }
+
+  try {
+    await db.collection(COL.customers).add({
+      name: name,
+      phone: phone,
+      email: email || "",
+      birthday: birthday || "",
+      totalSpent: 0,
+      totalVisits: 0,
+      loyaltyPoints: 0,
+      lifetimePoints: 0,
+      tier: "Bronze",
+      coupons: [],
+      lastVisit: "",
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast("Customer added successfully!");
+    closeAddModal();
+    loadCustomersPage();
+  } catch(e) {
+    showToast("Error: " + e.message, "error");
+  }
+}
+
+// ── Adjust Points Modal ───────────────────────────────────────────────
+function openAdjustModal(custId) {
+  adjustCustomerId = custId;
+  document.getElementById("adjust-points-modal").classList.add("open");
+}
+function closeAdjustModal() {
+  document.getElementById("adjust-points-modal").classList.remove("open");
+  document.getElementById("adjust-amount").value = "";
+  document.getElementById("adjust-reason").value = "";
+  adjustCustomerId = null;
+}
+
+async function confirmAdjustPoints() {
+  var action = document.getElementById("adjust-action").value;
+  var amount = parseInt(document.getElementById("adjust-amount").value) || 0;
+  var reason = document.getElementById("adjust-reason").value.trim();
+  if (amount <= 0) { showToast("Enter a valid amount.", "error"); return; }
+  if (!adjustCustomerId) return;
+
+  var cust = allCustomers.find(function(c) { return c.id === adjustCustomerId; });
+  if (!cust) return;
+
+  try {
+    var delta = action === "add" ? amount : -amount;
+    var newBalance = Math.max(0, (cust.loyaltyPoints || 0) + delta);
+    var newLifetime = action === "add" ? (cust.lifetimePoints || 0) + amount : (cust.lifetimePoints || 0);
+    var newTier = getTier(newLifetime);
+
+    await db.collection(COL.customers).doc(adjustCustomerId).update({
+      loyaltyPoints: newBalance,
+      lifetimePoints: newLifetime,
+      tier: newTier.name
+    });
+
+    showToast((action === "add" ? "Added " : "Deducted ") + amount + " points." + (reason ? " Reason: " + reason : ""));
+    closeAdjustModal();
+    loadCustomersPage();
+  } catch(e) {
+    showToast("Error: " + e.message, "error");
+  }
+}
+
+// ── Issue Coupon Modal ────────────────────────────────────────────────
+function openIssueCouponModal(custId) {
+  issueCouponCustomerId = custId;
+  document.getElementById("issue-coupon-modal").classList.add("open");
+}
+function closeIssueCouponModal() {
+  document.getElementById("issue-coupon-modal").classList.remove("open");
+  issueCouponCustomerId = null;
+}
+
+async function confirmIssueCoupon() {
+  var type = document.getElementById("coupon-type").value;
+  var value = parseInt(document.getElementById("coupon-value").value) || 0;
+  var minPurchase = parseInt(document.getElementById("coupon-min").value) || 0;
+  var days = parseInt(document.getElementById("coupon-days").value) || 30;
+  if (value <= 0) { showToast("Enter a valid discount value.", "error"); return; }
+  if (!issueCouponCustomerId) return;
+
+  var code = "SHOP-MANUAL-" + (Math.floor(1000 + Math.random() * 9000));
+  var expires = new Date();
+  expires.setDate(expires.getDate() + days);
+  var coupon = {
+    code: code,
+    discount: value,
+    type: type,
+    minPurchase: minPurchase,
+    expiresAt: expires.toISOString().split("T")[0],
+    used: false,
+    reason: "Manual Issue"
+  };
+
+  try {
+    await db.collection(COL.customers).doc(issueCouponCustomerId).update({
+      coupons: firebase.firestore.FieldValue.arrayUnion(coupon)
+    });
+    showToast("Coupon " + code + " issued!");
+    closeIssueCouponModal();
+    loadCustomersPage();
+  } catch(e) {
+    showToast("Error: " + e.message, "error");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  buildLayout("Customers");
+  loadCustomersPage();
+});
+</script>
+</body>
+</html>

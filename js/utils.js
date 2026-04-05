@@ -173,3 +173,127 @@ function setActiveNav() {
     if (href === path) { a.classList.add("active"); } else { a.classList.remove("active"); }
   });
 }
+
+// ── Loyalty Points Engine ─────────────────────────────────────────────────
+var POINTS_PER_RUPEE = 0.1;   // 1 point per ₹10
+var MIN_REDEEM_POINTS = 50;
+var POINT_VALUE = 1;           // 1 point = ₹1
+
+var TIER_THRESHOLDS = [
+  { name: "Platinum", min: 5000, color: "#e5e4e2" },
+  { name: "Gold",     min: 2000, color: "#ffd700" },
+  { name: "Silver",   min: 500,  color: "#c0c0c0" },
+  { name: "Bronze",   min: 0,    color: "#cd7f32" }
+];
+
+function calcPoints(grandTotal) {
+  return Math.floor((grandTotal || 0) * POINTS_PER_RUPEE);
+}
+
+function getTier(lifetimePoints) {
+  var pts = lifetimePoints || 0;
+  for (var i = 0; i < TIER_THRESHOLDS.length; i++) {
+    if (pts >= TIER_THRESHOLDS[i].min) {
+      var current = TIER_THRESHOLDS[i];
+      var next = i > 0 ? TIER_THRESHOLDS[i - 1] : null;
+      return {
+        name: current.name,
+        color: current.color,
+        nextTier: next ? next.name : null,
+        pointsToNext: next ? (next.min - pts) : 0,
+        nextMin: next ? next.min : 0,
+        currentMin: current.min
+      };
+    }
+  }
+  return { name: "Bronze", color: "#cd7f32", nextTier: "Silver", pointsToNext: 500 - pts, nextMin: 500, currentMin: 0 };
+}
+
+function getTierColor(tier) {
+  var colors = { "Bronze": "#cd7f32", "Silver": "#c0c0c0", "Gold": "#ffd700", "Platinum": "#e5e4e2" };
+  return colors[tier] || "#cd7f32";
+}
+
+function generateCoupon(tier) {
+  var code = "SHOP-" + tier.toUpperCase() + "-" + (Math.floor(1000 + Math.random() * 9000));
+  var now = new Date();
+  var expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  var expiresAt = expires.toISOString().split("T")[0];
+
+  if (tier === "Silver") {
+    return { code: code, discount: 5, type: "percentage", minPurchase: 500, expiresAt: expiresAt, used: false, reason: "Silver Tier Reward" };
+  } else if (tier === "Gold") {
+    return { code: code, discount: 10, type: "percentage", minPurchase: 1000, expiresAt: expiresAt, used: false, reason: "Gold Tier Reward" };
+  } else if (tier === "Platinum") {
+    return { code: code, discount: 15, type: "percentage", minPurchase: 0, expiresAt: expiresAt, used: false, reason: "Platinum Tier Reward" };
+  }
+  return null;
+}
+
+function generateBirthdayCoupon() {
+  var code = "SHOP-BDAY-" + (Math.floor(1000 + Math.random() * 9000));
+  var now = new Date();
+  var expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  return { code: code, discount: 10, type: "percentage", minPurchase: 0, expiresAt: expires.toISOString().split("T")[0], used: false, reason: "Birthday Special 🎂" };
+}
+
+function generateMissYouCoupon() {
+  var code = "SHOP-MISS-" + (Math.floor(1000 + Math.random() * 9000));
+  var now = new Date();
+  var expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  return { code: code, discount: 5, type: "percentage", minPurchase: 0, expiresAt: expires.toISOString().split("T")[0], used: false, reason: "We Miss You! 💝" };
+}
+
+function generateMilestoneCoupon(visitCount) {
+  var code = "SHOP-MILE-" + (Math.floor(1000 + Math.random() * 9000));
+  var now = new Date();
+  var expires = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  return { code: code, discount: 100, type: "flat", minPurchase: 0, expiresAt: expires.toISOString().split("T")[0], used: false, reason: visitCount + " Visits Milestone 🎉" };
+}
+
+// ── Customer Alert Engine (birthday + inactivity checks) ──────────────────
+async function runCustomerAlertEngine() {
+  try {
+    var snap = await db.collection(COL.customers).get();
+    var todayDate = new Date();
+    var todayMonth = todayDate.getMonth() + 1;
+    var todayDay = todayDate.getDate();
+
+    snap.forEach(function(doc) {
+      var c = doc.data();
+      var coupons = c.coupons || [];
+      var needsUpdate = false;
+
+      // Birthday coupon check
+      if (c.birthday) {
+        var bday = new Date(c.birthday);
+        var bdayMonth = bday.getMonth() + 1;
+        var bdayDay = bday.getDate();
+        var diff = (bdayMonth === todayMonth) ? (bdayDay - todayDay) : -999;
+        if (diff >= 0 && diff <= 7) {
+          var hasBday = coupons.some(function(cp) { return cp.reason && cp.reason.indexOf("Birthday") !== -1 && !cp.used && cp.expiresAt >= today(); });
+          if (!hasBday) {
+            coupons.push(generateBirthdayCoupon());
+            needsUpdate = true;
+          }
+        }
+      }
+
+      // Inactivity coupon (30+ days since last visit)
+      if (c.lastVisit && daysSince(c.lastVisit) > 30) {
+        var hasMissYou = coupons.some(function(cp) { return cp.reason && cp.reason.indexOf("Miss You") !== -1 && !cp.used && cp.expiresAt >= today(); });
+        if (!hasMissYou) {
+          coupons.push(generateMissYouCoupon());
+          needsUpdate = true;
+        }
+      }
+
+      if (needsUpdate) {
+        db.collection(COL.customers).doc(doc.id).update({ coupons: coupons });
+      }
+    });
+  } catch(e) {
+    console.error("Customer alert engine error:", e);
+  }
+}
+
