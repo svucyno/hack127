@@ -104,8 +104,10 @@
         role: role,
         lastLogin: firebase.firestore.FieldValue.serverTimestamp()
       }, { merge: true });
-      // Clear cached role so new role takes effect
-      localStorage.removeItem("ss_role_" + cred.user.uid);
+      // Set cached role so next page picks it up immediately
+      localStorage.setItem("ss_role_" + cred.user.uid, JSON.stringify({
+        role: role, name: cred.user.displayName || email.split("@")[0], email: email, ts: Date.now()
+      }));
       // Redirect based on selected role
       window.location.href = role === "User" ? "pages/landing.html" : "pages/dashboard.html";
     } catch (e) {

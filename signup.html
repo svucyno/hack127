@@ -106,6 +106,10 @@
         lastLogin: firebase.firestore.FieldValue.serverTimestamp()
       });
 
+      // Cache role for immediate use on next page
+      localStorage.setItem("ss_role_" + cred.user.uid, JSON.stringify({
+        role: role, name: name, email: email, ts: Date.now()
+      }));
       var dest = role === "User" ? "pages/landing.html" : "pages/dashboard.html";
       window.location.href = dest;
     } catch (e) {

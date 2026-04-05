@@ -138,3 +138,30 @@ function buildLayout(pageTitle) {
     }
   });
 }
+
+// Called by auth_roles.js after role is confirmed — rebuilds sidebar nav
+function _rebuildNav(sidebarNavEl, role) {
+  var allNav = [
+    { href: "../pages/dashboard.html",   key: "Dashboard",   navKey: "dashboard",   label: typeof t === 'function' ? t("nav.dashboard") : "Dashboard" },
+    { href: "../pages/inventory.html",   key: "Inventory",   navKey: "inventory",   label: typeof t === 'function' ? t("nav.inventory") : "Inventory" },
+    { href: "../pages/billing.html",     key: "Billing",     navKey: "billing",     label: typeof t === 'function' ? t("nav.billing") : "Billing" },
+    { href: "../pages/alerts.html",      key: "Alerts",      navKey: "alerts",      label: typeof t === 'function' ? t("nav.alerts") : "Alerts" },
+    { href: "../pages/offers.html",      key: "Offers",      navKey: "offers",      label: typeof t === 'function' ? t("nav.offers") : "Offers" },
+    { href: "../pages/reports.html",     key: "Reports",     navKey: "reports",     label: typeof t === 'function' ? t("nav.reports") : "Reports" },
+    { href: "../pages/suppliers.html",   key: "Suppliers",   navKey: "suppliers",   label: typeof t === 'function' ? t("nav.suppliers") : "Suppliers" },
+    { href: "../pages/customers.html",   key: "Customers",   navKey: "customers",   label: typeof t === 'function' ? t("nav.customers") : "Customers" },
+    { href: "../pages/landing.html",     key: "Landing",     navKey: "landing",     label: "Shop" },
+    { href: "../pages/offers_user.html", key: "Shop",        navKey: "offers_user", label: "Deals" },
+    { href: "../pages/cart.html",        key: "Cart",        navKey: "cart",        label: "Cart" },
+    { href: "../pages/orders.html",      key: "Orders",      navKey: "orders",      label: "Orders" },
+  ];
+  var allowedKeys = typeof getNavItemsForRole === 'function' ? getNavItemsForRole(role) : [];
+  var nav = allNav.filter(function(n) { return allowedKeys.indexOf(n.navKey) !== -1; });
+  sidebarNavEl.innerHTML = nav.map(function(n) {
+    return '<a href="' + n.href + '" class="nav-link" data-label="' + n.label + '">' +
+      '<span class="nav-icon">' + (NAV_ICONS[n.key] || '') + '</span>' +
+      '<span class="nav-label">' + n.label + '</span>' +
+    '</a>';
+  }).join("");
+  setActiveNav();
+}

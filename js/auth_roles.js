@@ -122,6 +122,13 @@ function logout() {
       if (nameEl) nameEl.textContent = user.displayName || userData.name || user.email || "User";
       if (avatarEl) avatarEl.textContent = (user.displayName || userData.name || "U").charAt(0).toUpperCase();
       if (roleEl) roleEl.textContent = userData.role;
+
+      // Rebuild sidebar nav with correct role
+      var sidebarNav = document.querySelector(".sidebar-nav");
+      if (sidebarNav && typeof _rebuildNav === "function") {
+        _rebuildNav(sidebarNav, _currentUserRole);
+      }
+
       // Check permission
       if (!hasPermission(pageName)) {
         window.location.href = ROLE_DEFAULT_PAGE[_currentUserRole] || "landing.html";
