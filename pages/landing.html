@@ -34,6 +34,10 @@ async function loadShop() {
     allOffers = results[1].docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); })
       .filter(function(o) { return o.active && (!o.validUntil || o.validUntil >= todayStr); });
     renderCatGrid();
+    // Translate product names if not English
+    if (typeof translateProducts === "function" && currentLang !== "en") {
+      await translateProducts(allProducts, currentLang);
+    }
     renderProducts();
     renderTrending();
     CartManager.updateCartBadge();
@@ -89,8 +93,8 @@ function renderProducts() {
       return '<div style="background:var(--card-bg);border-radius:14px;box-shadow:var(--shadow);border:1px solid var(--border);padding:16px;position:relative;display:flex;flex-direction:column;gap:8px">' +
         offerTag +
         '<div style="font-size:11px;color:var(--text-3)">' + p.category + '</div>' +
-        '<div style="font-weight:700;font-size:14px;color:var(--text)">' + p.name + '</div>' +
-        '<div style="font-size:11px;color:#888">' + (p.company||"") + (p.size ? " · " + p.size : "") + '</div>' +
+        '<div style="font-weight:700;font-size:14px;color:var(--text)">' + (typeof getTranslatedName === "function" ? getTranslatedName(p) : p.name) + '</div>' +
+        '<div style="font-size:11px;color:#888">' + (typeof getTranslatedCompany === "function" ? getTranslatedCompany(p) : (p.company||"")) + (p.size ? " · " + p.size : "") + '</div>' +
         '<div style="font-size:15px;margin-top:auto">' + priceHtml + '</div>' +
         stockTag +
         '<button class="btn btn-sm btn-primary" style="width:100%;justify-content:center" onclick="addToShopCart(\'' + p.id + '\')">🛒 Add to Cart</button>' +
@@ -107,7 +111,7 @@ function renderTrending() {
     var icons = ["🥇","🥈","🥉","4️⃣","5️⃣"];
     return '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)">' +
       '<span style="font-size:16px">' + icons[i] + '</span>' +
-      '<span style="flex:1;font-weight:600;font-size:13px">' + p.name + '</span>' +
+      '<span style="flex:1;font-weight:600;font-size:13px">' + (typeof getTranslatedName === "function" ? getTranslatedName(p) : p.name) + '</span>' +
       '<span style="font-size:12px;color:var(--mint)">' + fmtCurrency(p.sellingPrice) + '</span>' +
     '</div>';
   }).join("");

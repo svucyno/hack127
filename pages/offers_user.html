@@ -73,7 +73,7 @@ function renderDeals() {
       return '<div style="background:var(--card-bg);border-radius:14px;box-shadow:var(--shadow);border:1px solid var(--border);padding:18px;position:relative">' +
         '<div style="position:absolute;top:12px;right:12px;background:linear-gradient(135deg,var(--accent-l),var(--accent));color:#fff;padding:4px 12px;border-radius:14px;font-size:11px;font-weight:700">' + badge + '</div>' +
         '<div style="font-size:11px;color:var(--text-3)">' + p.category + ' ' + hotBadge + '</div>' +
-        '<div style="font-weight:700;font-size:15px;margin:6px 0;color:var(--text)">' + p.name + '</div>' +
+        '<div style="font-weight:700;font-size:15px;margin:6px 0;color:var(--text)">' + (typeof getTranslatedName === "function" ? getTranslatedName(p) : p.name) + '</div>' +
         '<div style="font-size:11px;color:#888">' + (p.company||"") + '</div>' +
         reasonTag +
         '<div style="margin-top:8px;font-size:16px"><span style="color:var(--mint);font-weight:700">' + fmtCurrency(newPrice) + '</span> <span style="text-decoration:line-through;color:#aaa;font-size:12px">' + fmtCurrency(p.sellingPrice) + '</span></div>' +

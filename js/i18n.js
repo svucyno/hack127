@@ -146,3 +146,63 @@ function getLangSwitcherHTML() {
     }).join("") +
   '</select>';
 }
+
+// ── Dynamic Content Translation (product names, etc.) ──────────────────────
+// Uses MyMemory free translation API — no API key needed
+var _translationCache = {};
+
+async function translateText(text, targetLang) {
+  if (!text || targetLang === "en") return text;
+  var langMap = { hi: "hi", te: "te" };
+  var target = langMap[targetLang];
+  if (!target) return text;
+
+  // Check cache first
+  var cacheKey = text + "|" + target;
+  if (_translationCache[cacheKey]) return _translationCache[cacheKey];
+
+  try {
+    var url = "https://api.mymemory.translated.net/get?q=" + encodeURIComponent(text) + "&langpair=en|" + target;
+    var resp = await fetch(url);
+    var data = await resp.json();
+    if (data.responseData && data.responseData.translatedText) {
+      var translated = data.responseData.translatedText;
+      _translationCache[cacheKey] = translated;
+      return translated;
+    }
+  } catch(e) { /* API failed — return original */ }
+  return text;
+}
+
+// Batch translate an array of strings
+async function translateBatch(texts, targetLang) {
+  if (!texts.length || targetLang === "en") return texts;
+  var results = [];
+  for (var i = 0; i < texts.length; i++) {
+    results.push(await translateText(texts[i], targetLang));
+  }
+  return results;
+}
+
+// Translate product names in an array of products
+async function translateProducts(products, targetLang) {
+  if (targetLang === "en") return products;
+  for (var i = 0; i < products.length; i++) {
+    products[i]._translatedName = await translateText(products[i].name, targetLang);
+    if (products[i].company) {
+      products[i]._translatedCompany = await translateText(products[i].company, targetLang);
+    }
+  }
+  return products;
+}
+
+// Get translated name (falls back to original)
+function getTranslatedName(product) {
+  if (currentLang !== "en" && product._translatedName) return product._translatedName;
+  return product.name;
+}
+
+function getTranslatedCompany(product) {
+  if (currentLang !== "en" && product._translatedCompany) return product._translatedCompany;
+  return product.company || "";
+}
