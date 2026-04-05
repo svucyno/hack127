@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ShopSmart — Login</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <h1>🛒 ShopSmart</h1>
+      <p>Retail Intelligence Platform · Cloud Nine</p>
+    </div>
+
+    <div id="login-error" style="display:none;background:#FFCDD2;color:#C62828;padding:10px 14px;border-radius:7px;font-size:13px;margin-bottom:14px;"></div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Email Address</label>
+      <input type="email" id="email" placeholder="owner@myshop.com" autocomplete="username"/>
+    </div>
+    <div class="form-group" style="margin-bottom:20px">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="current-password"/>
+    </div>
+
+    <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:15px;padding:11px" onclick="doLogin()" id="login-btn">
+      Sign In
+    </button>
+
+    <p style="text-align:center;margin-top:16px;font-size:13px;color:#666">
+      Don't have an account? <a href="signup.html" style="color:var(--primary);text-decoration:none;font-weight:600">Sign up</a>
+    </p>
+    <hr style="margin:20px 0;border-color:#eee"/>
+    <p style="text-align:center;font-size:11px;color:#aaa">ShopSmart v1.0 · Cloud Nine Team</p>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase.js?v=5"></script>
+<script>
+  // Redirect if already logged in via Firebase Auth
+  auth.onAuthStateChanged(user => {
+    if (user) window.location.href = "pages/dashboard.html";
+  });
+
+  async function doLogin() {
+    const email = document.getElementById("email").value.trim();
+    const pass  = document.getElementById("password").value;
+    const errEl = document.getElementById("login-error");
+    const btn   = document.getElementById("login-btn");
+    errEl.style.display = "none";
+    if (!email || !pass) { errEl.textContent = "Please enter email and password."; errEl.style.display = "block"; return; }
+    btn.textContent = "Signing in…"; btn.disabled = true;
+    
+    try {
+      await auth.signInWithEmailAndPassword(email, pass);
+      window.location.href = "pages/dashboard.html";
+    } catch (e) {
+      errEl.textContent = e.message || "Invalid email or password.";
+      errEl.style.display = "block";
+      btn.textContent = "Sign In"; 
+      btn.disabled = false;
+    }
+  }
+
+  document.addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
+</script>
+</body>
+</html>
