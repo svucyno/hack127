@@ -64,10 +64,8 @@ function renderUsers() {
   }
 
   el.innerHTML =
-    renderGroup("Admins", "👑", admins, "badge-blue") +
     renderGroup("Workers", "📦", workers, "badge-yellow") +
-    renderGroup("Cashiers", "💳", cashiers, "badge-green") +
-    renderGroup("Customers", "🛒", customers, "badge-grey");
+    renderGroup("Cashiers", "💳", cashiers, "badge-green");
 }
 
 async function deleteUser(uid, name) {
