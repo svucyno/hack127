@@ -453,3 +453,117 @@ This document details every feature implemented in ShopSmart, how it works, and 
 | CSS | 2 | style.css, donut-chart-refined.css |
 | Docs | 2 | README.md, FEATURES.md |
 | **Total** | **32** | |
+
+
+---
+
+## 22. 📋 Order Management System
+
+**What it does:** Admin/Cashier can see, accept, pack, and fulfill customer orders in real-time.
+
+**How it works:**
+- Order Management page shows all incoming customer orders with auto-refresh (10 seconds)
+- Order lifecycle: New → Accept Order → Packing Done (auto-generates bill + prints receipt) → Ready for Pickup → Customer confirms "Order Received" → Completed
+- KPI cards show counts per status (New, Packing, Ready, Completed)
+- Filter by status (Active, New, Packing, Ready, Completed, All)
+- On completion: customer added to loyalty system, analytics updated
+- 24-hour auto-complete for orders stuck in "Ready" status
+- Bill printed with escaped HTML tags to prevent inline script parsing issues
+
+**Files:** `pages/order_mgmt.html`, `pages/orders.html`
+
+---
+
+## 23. 👥 User Management
+
+**What it does:** Admin creates Worker and Cashier accounts without logging out.
+
+**How it works:**
+- Users page (Admin-only) with "Add Worker" and "Add Cashier" buttons
+- Modal shows name, email, password fields + access list for that role
+- Uses secondary Firebase Auth instance to create accounts (admin session preserved)
+- Shows all Workers and Cashiers with avatar, name, email, role badge, last login
+- Delete button demotes staff to Customer role
+- User-friendly error messages for duplicate emails, weak passwords, etc.
+
+**Files:** `pages/users.html`
+
+---
+
+## 24. 🤖 AI Predictions v2
+
+**What it does:** Upgraded forecasting with weighted averages, weekly patterns, confidence scores, and seasonal detection.
+
+**How it works:**
+- Weighted moving average: last 7 days weighted 3x, 8-14 days 2x, 15-30 days 1x
+- Weekly pattern detection: identifies peak day (e.g., Sunday spike) and low day (Monday dip)
+- Confidence score per prediction: High (90), Medium (60), Low (35), Very Low (10) — based on data density
+- Seasonal flag: detects if demand is up vs last month, shows percentage increase
+- Dashboard shows confidence dots and weekly pattern info alongside predictions
+
+**Files:** `js/predictions.js`, `pages/dashboard.html`
+
+---
+
+## 25. 📱 Mobile Responsive Design
+
+**What it does:** Full mobile-first responsive design for all screen sizes.
+
+**How it works:**
+- Sidebar converts to slide-in drawer with dark overlay on mobile (<=900px)
+- Hamburger menu with close-on-outside-click and auto-close on resize
+- Touch-friendly buttons: 42-44px minimum height
+- Form inputs: 14px font, 44px min height for easy tapping
+- KPI cards: 2-column grid on mobile
+- Tables: horizontal scroll with reduced padding
+- Charts: reduced height (220px) on mobile
+- Modals: 95% width on mobile
+- Category chips: smaller (64px) on mobile
+- Toast notifications: full width on mobile
+- Three breakpoints: Mobile (<=600px), Tablet (601-900px), Desktop (>900px)
+
+**Files:** `css/style.css`, `js/layout.js`
+
+---
+
+## 26. 🌍 Dynamic Content Translation
+
+**What it does:** Product names and company names translate to Hindi/Telugu automatically.
+
+**How it works:**
+- Uses MyMemory Translation API (free, no API key, no server needed)
+- `translateText(text, lang)` translates a single string
+- `translateProducts(products, lang)` batch translates product names
+- Translation cache in memory — same text never translated twice
+- Landing page and Deals page show translated product names when language is Hindi or Telugu
+- Falls back to original English name if API fails
+
+**Files:** `js/i18n.js`, `pages/landing.html`, `pages/offers_user.html`
+
+---
+
+## 27. 🔢 Sequential Bill Numbers
+
+**What it does:** Bills use sequential counter (BILL-00001) instead of timestamps.
+
+**How it works:**
+- Firestore document `settings/billCounter` stores the current count
+- On each bill, counter increments atomically
+- Bill ID format: BILL-00001, BILL-00002, etc. (zero-padded to 5 digits)
+- Falls back to timestamp-based ID if counter fails
+
+**Files:** `js/billing2.js`
+
+---
+
+## 28. 📊 Smart Low-Stock Thresholds
+
+**What it does:** Dynamic reorder point per product based on actual sales rate.
+
+**How it works:**
+- Calculates: reorder point = (avg daily sales x lead time) + safety stock (2 days)
+- Shows "Order now — will run out in N days" instead of generic "Low Stock"
+- Falls back to 10% threshold if no sales data exists
+- Supports `leadTimeDays` per product from supplier settings
+
+**Files:** `js/utils.js`

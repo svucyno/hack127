@@ -1,255 +1,232 @@
-# 🛒 ShopSmart — AI-Powered Retail Intelligence Platform
+# 🛒 ShopSmart
 
-**Team Cloud Nine** | Soniya · Lasya · Dedeepya · Sameer  
-**Track:** RetailTech / AI for Small Business · Hackathon 2025
+**AI-powered retail management for small businesses — zero dependencies, fully offline-capable.**
 
----
-
-## 🎯 Problem Statement
-
-Small retail shop owners in India struggle with manual inventory tracking, missed expiry dates leading to losses, no visibility into profit margins, and zero data-driven decision making. Most existing POS systems are either too expensive or too complex for a kirana store owner.
-
-## 💡 Our Solution
-
-**ShopSmart** is a lightweight, cloud-based retail management platform built entirely with vanilla HTML/CSS/JS and Firebase. No frameworks, no build tools, no server — just open and run. It gives small shop owners the power of enterprise retail analytics at zero cost.
+> Built by **Team Cloud Nine** — Soniya, Lasya, Dedeepya, Sameer
+> **Track:** RetailTech / AI for Small Business · **Hackathon 2025**
 
 ---
 
-## ✨ Key Features
-
-### 📦 Smart Inventory Management
-- Add products with company name, category, size, cost/selling price, GST slab, expiry date
-- Real-time stock tracking with low stock and expiry status badges
-- Search and filter by name, company, category, or status
-- **Barcode scanning** — scan product barcodes via device camera to quickly find or add products
-- **Bulk scan mode** — continuously scan multiple products to update stock quantities in batch
-- **Supplier column** — see which supplier/dealer is linked to each product directly in the table
-- **Supplier dropdown** — select supplier from a proper dropdown instead of typing IDs manually
-
-### 🧾 Intelligent Billing System
-- Click-to-add product billing with real-time cart
-- **Auto GST calculation** — CGST + SGST split per item based on GST slab
-- **Automatic offer/discount detection** — active offers are applied at billing time with strikethrough pricing and savings display
-- **Barcode scanning at checkout** — continuous scan mode for rapid billing, items auto-add to cart
-- **Limited quantity offer enforcement** — offers with max quantity limits are tracked and auto-deactivated when sold out
-- Stock auto-deduction on bill confirmation
-- Print-ready bill receipt with shop details, GST breakdown, and discount info
-- **Quick bill from offers** — "Sell Now" button on offers redirects to billing with product pre-added
-
-### 🎯 Offers & Discounts
-- Create percentage, flat, or Buy-X-Get-Y offers linked to specific products
-- **Limited quantity offers** — set a max quantity for offers (e.g., only 20 units at discount), with progress bar showing sold/total
-- **Offer reason tracking** — tag offers as "Expiry Clearance", "Festival Offer", "Clearance Sale", "Bulk Deal"
-- **Smart expiry clearance suggestions** — products approaching expiry without an active offer are highlighted with auto-suggested discount percentages:
-  - ≤ 3 days left → 40% off suggested
-  - ≤ 7 days left → 30% off suggested
-  - ≤ 15 days left → 20% off suggested
-  - ≤ 30 days left → 10% off suggested
-- **One-click offer creation** from expiry suggestions with pre-filled product, discount, quantity, and expiry date
-- **Covered products indicator** — products that already have active offers are shown separately with a "Covered" badge
-- Active/inactive/sold-out offer management with validity dates
-- **Sell Now button** — quick path from offer card to billing page with product pre-loaded
-
-### � Category-Aware Smart Alerts
-This is our key innovation. Instead of one-size-fits-all expiry alerts, ShopSmart uses **category-based thresholds**:
-
-| Category | 🔴 Urgent Alert | 🟡 Warning Alert |
-|----------|-----------------|-------------------|
-| Dairy | 3 days | 7 days |
-| Beverages | 5 days | 14 days |
-| Snacks | 10 days | 30 days |
-| Medicines | 15 days | 45 days |
-| Groceries (rice, dal) | 30 days | 60 days |
-| Electronics | 30 days | 90 days |
-
-- Low stock alerts when inventory drops below 10% of max
-- Dead stock detection for products with zero sales in 30+ days
-- Expired product alerts with "remove from shelf" urgency
-- **Smart alert suppression** — expiry alerts are automatically suppressed when the product already has an active clearance offer (the owner has already taken action)
-- **Auto-resolve** — existing expiry alerts are auto-resolved when a clearance offer is created for that product
-- **"Create Offer" button on alerts** — one-click redirect to offers page from any expiry alert
-- **"Offer Active" tag** — visual indicator on alerts where the product already has an active offer
-- **Delete individual alerts** — 🗑️ button on each alert to permanently remove it from Firestore
-- **Bulk delete resolved** — "Delete Resolved" button in the topbar to clean up all resolved alerts at once
-
-### 📊 Dashboard & Analytics
-- Today's KPIs: customers, items sold, revenue, profit, active alerts
-- 30-day profit trend bar chart
-- Sales by category doughnut chart
-- Top 5 selling products leaderboard
-- Recent alerts feed
-
-### 📋 Reports & Export
-- Daily, weekly, and monthly report views
-- Revenue vs profit trend line charts
-- GST slab-wise breakdown with pie chart
-- Top selling products table
-- Daily breakdown with bill count, revenue, profit
-- **CSV export** for accounting
-
-### 🏪 Supplier & Dealer Management
-- Supplier contact directory with phone, email, notes
-- **Product linking** — assign products to suppliers directly when adding/editing a supplier via searchable checkbox list
-- **Quick link button** — "� Products" button on each supplier card for fast product assignment
-- **Product tags with stock levels** — each supplier card shows linked products with color-coded stock indicators (red/yellow/green)
-- **Search suppliers** — filter by name, phone, or email
-- **Grouped reorder drafts** — low-stock items grouped by supplier with a single WhatsApp message covering all products
-- **Direct WhatsApp chat** — "💬 Chat" button opens a direct conversation with the supplier
-- **WhatsApp reorder** — "📦 Reorder" button sends a formatted reorder message listing low-stock products
-- **Auto reorder drafts** — when stock is critically low, generates pre-written reorder messages
-- **Clean supplier deletion** — deleting a supplier automatically unlinks all associated products
-
-### 📷 Barcode Scanning
-- **Reusable scanner component** — works across inventory, billing, and any future pages
-- **Camera-based scanning** — uses device rear camera (mobile) or webcam (desktop)
-- **Supported formats** — EAN-13, EAN-8, UPC-A, CODE-128, CODE-39
-- **Manual fallback** — type barcode number manually if camera isn't available
-- **Single scan mode** — scan one barcode and auto-close (for inventory lookup)
-- **Continuous scan mode** — keep scanning multiple items with 1.5s cooldown (for billing and bulk operations)
-- **Audio feedback** — beep sound on successful scan
-- **Scan log** — running list of scanned items in continuous mode
-
-### 🌐 Vernacular Language Support (Hindi & Telugu)
-- **Three languages** — English, Hindi (हिन्दी), and Telugu (తెలుగు)
-- **Language switcher** in the topbar — one-click switch, persists across sessions via localStorage
-- **Full UI translation** — navigation, buttons, labels, alerts, billing, reports, offers, suppliers, dashboard KPIs, table headers, form fields, filter dropdowns — every visible string translates
-- **Designed for kirana owners** in Tier 2/3 cities who are more comfortable in regional languages
-- **Extensible** — add more languages by simply adding entries to the translations object in `js/i18n.js`
-
-### 🤖 AI Predictive Intelligence
-- **Demand forecasting** — uses 30-day sales history to calculate daily sales rate per product
-- **Stockout prediction** — "Amul Milk will run out in ~4 days at current rate"
-- **Optimal reorder suggestions** — calculates how many units to reorder for 30 days of stock
-- **Expiry waste prediction** — identifies products likely to expire before being sold, with estimated waste units
-- **Demand trend analysis** — shows if demand is increasing 📈, stable ➡️, or decreasing 📉 (compares last 15 days vs previous 15)
-- **Dashboard integration** — AI predictions card on the dashboard with urgent alerts highlighted
-- **Moves from reactive to predictive** — instead of alerting after stock is low, predicts when it will happen
-
-### 📡 Offline Mode
-- **Service Worker** — caches the entire app shell (HTML, CSS, JS) for offline access
-- **IndexedDB local storage** — products, suppliers, and offers cached locally for offline viewing
-- **Pending writes queue** — billing and inventory changes made offline are queued in IndexedDB
-- **Auto-sync on reconnect** — when internet returns, all pending changes sync to Firestore automatically
-- **Offline banner** — visual indicator when the app is offline, with translated messages
-- **Background sync** — service worker triggers sync when connectivity is restored
-- **Rural-ready** — designed for kirana stores in Tier 2/3 cities with unreliable internet
-
----
-
-## 🏗️ Tech Stack
+## Tech Stack
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Vanilla HTML5, CSS3, JavaScript (ES6+) |
-| Database | Firebase Firestore (NoSQL, real-time) |
-| Auth | Firebase Authentication (Email/Password) |
-| Charts | Chart.js 4.4 |
-| Barcode | html5-qrcode (CDN) |
-| i18n | Custom translation engine (English, Hindi, Telugu) |
-| Offline | Service Worker + IndexedDB |
-| AI/ML | Custom prediction engine (sales-based demand forecasting) |
-| Hosting | Any static host (GitHub Pages, Netlify, or just open locally) |
+| Frontend | Vanilla HTML / CSS / JavaScript |
+| Auth & Database | Firebase Auth + Cloud Firestore |
+| Offline Storage | IndexedDB + Service Worker |
+| Charts | Chart.js |
+| Barcode Scanning | html5-qrcode (camera-based) |
+| Translation | MyMemory Translation API |
 
-**Zero dependencies. No npm. No build step. No framework.**
+No npm. No build step. No framework. Just open and run.
 
 ---
 
-## 📁 Project Structure
+## Features
+
+### 1. Smart Inventory
+- Full CRUD for products with category navigation grid (neumorphic chips with icons + counts)
+- Camera-based barcode scanning — single and continuous (bulk) modes with audio feedback and manual fallback
+- Supplier dropdown linking, stock level badges
+
+### 2. Intelligent Billing (POS)
+- Auto GST calculation (CGST + SGST breakdown)
+- Auto offer detection at checkout
+- Barcode scanning at the register
+- Sequential bill numbers via Firestore counter (`BILL-00001`, `BILL-00002`, …)
+- Print-ready receipts
+
+### 3. Category-Aware Alerts
+- Per-category expiry thresholds (e.g. Dairy → 3 days, Groceries → 30 days)
+- Offer-aware suppression — no alerts for items already on clearance
+- Auto-resolve when conditions clear; delete individual or bulk
+
+### 4. Offers & Discounts
+- Limited-quantity offers with live progress bar
+- Expiry clearance suggestions with auto-calculated discount %
+- "Sell Now" quick action button, reason tags for each offer
+
+### 5. AI Demand Predictions (v2)
+- Weighted moving average forecasting
+- Weekly pattern detection — identifies peak and low sales days
+- Confidence scoring (High / Medium / Low)
+- Seasonal spike detection, stockout prediction, reorder suggestions
+
+### 6. Reports & Export
+- Daily, weekly, and monthly report views
+- Visual charts (Chart.js)
+- CSV export for all report data
+
+### 7. Supplier Management
+- Link products to suppliers via checkbox selection
+- WhatsApp reorder messages grouped by supplier
+- Direct WhatsApp chat link per supplier
+
+### 8. Customer Loyalty
+- Points-based system with automatic tier progression
+- Tiers: Bronze → Silver → Gold → Platinum
+- Auto-generated coupons per tier
+
+### 9. Vernacular Support
+- Full UI translation: English, Hindi, Telugu
+- Dynamic product name translation via MyMemory API
+
+### 10. Offline Mode
+- Service Worker caches all 36 project files
+- IndexedDB for local data persistence
+- Pending writes queue with visible count display
+- Manual sync button + auto-sync on reconnect
+
+### 11. Role-Based Access Control (RBAC)
+Four roles with page-level access, sidebar filtering, and route guards:
+
+| Page | Admin | Worker | Cashier | Customer |
+|------|:-----:|:------:|:-------:|:--------:|
+| Dashboard | ✅ | ✅ | ✅ | — |
+| Inventory | ✅ | ✅ | — | — |
+| Billing | ✅ | — | ✅ | — |
+| Alerts | ✅ | ✅ | ✅ | — |
+| Offers | ✅ | — | — | — |
+| Reports | ✅ | — | ✅ | — |
+| Suppliers | ✅ | ✅ | — | — |
+| Customers | ✅ | — | — | — |
+| Users | ✅ | — | — | — |
+| Orders | ✅ | — | ✅ | ✅ |
+| Shop | — | — | — | ✅ |
+| Deals | — | — | — | ✅ |
+| Notifications | — | — | — | ✅ |
+| Cart | — | — | — | ✅ |
+
+### 12. Customer Shopping Experience
+- Landing page with search, category browsing, product grid, and trending items
+- Deals page with countdown timers, hot badges, and limited-quantity indicators
+- Cart with full GST breakdown, checkout flow with pickup time popup
+- Orders page with live status tracking (progress bar) and "Order Received" confirmation
+
+### 13. Order Management
+Full lifecycle managed by Admin/Cashier:
 
 ```
-shopsmart/
-├── index.html                 ← Login page
-├── signup.html                ← Account creation
-├── sw.js                      ← Service Worker for offline mode
+Order Placed → Accepted → Packing Done (auto-bill + print) → Ready for Pickup → Customer Confirms → Completed + Loyalty Update
+```
+
+### 14. User Management
+- Admin creates Worker/Cashier accounts via secondary Firebase Auth instance
+- Admin session is preserved (no logout on account creation)
+
+### 15. Notifications
+- Deals, expiring offers, new arrivals, budget picks
+- Deduplicated per product to avoid spam
+
+### 16. Smart Low-Stock Thresholds
+- Dynamic reorder point calculated from sales rate and supplier lead time
+
+### 17. Mobile Responsive
+- Sidebar drawer with overlay on mobile
+- Touch-friendly buttons (44px minimum tap targets)
+- Stacked layouts and responsive charts
+
+### 18. User-Friendly Errors
+- All Firebase error codes mapped to plain English messages
+
+---
+
+## Project Structure
+
+```
+ShopSmart/
+├── index.html              # Login
+├── signup.html             # Registration
+├── sw.js                   # Service Worker
+├── firestore.rules         # Firestore security rules
+├── .gitignore
+│
 ├── css/
-│   ├── style.css              ← Complete UI styles + scanner + offline banner
+│   ├── style.css
 │   └── donut-chart-refined.css
+│
 ├── js/
-│   ├── firebase.js            ← Firebase config & auth
-│   ├── utils.js               ← GST engine, smart alert engine (offer-aware), helpers
-│   ├── i18n.js                ← Internationalization — English, Hindi, Telugu translations
-│   ├── layout.js              ← Sidebar & navigation builder (i18n-aware)
-│   ├── predictions.js         ← AI demand forecasting & stockout prediction engine
-│   ├── offline.js             ← Service Worker registration, IndexedDB cache, sync queue
-│   ├── billing.js             ← Product loading, cart, offer detection, barcode lookup
-│   ├── billing2.js            ← Cart rendering, bill confirmation, printing, offer qty tracking
-│   ├── barcode-scanner.js     ← Reusable barcode scanner component (camera + manual)
-│   └── donut-chart-fixed.js   ← Custom chart component
+│   ├── firebase.js         # Firebase config & init
+│   ├── utils.js            # Shared helpers
+│   ├── auth_roles.js       # Auth + RBAC logic
+│   ├── i18n.js             # Vernacular translation
+│   ├── layout.js           # Sidebar, navigation
+│   ├── billing.js          # Billing engine
+│   ├── billing2.js         # Extended billing logic
+│   ├── cart_logic.js       # Cart operations
+│   ├── barcode-scanner.js  # Camera barcode scanning
+│   ├── predictions.js      # AI demand forecasting
+│   ├── offline.js          # IndexedDB + sync queue
+│   └── donut-chart-fixed.js
+│
 └── pages/
-    ├── dashboard.html         ← KPIs, charts, top sellers, AI predictions
-    ├── inventory.html         ← Product CRUD with barcode, supplier dropdown, bulk scan
-    ├── billing.html           ← POS billing with barcode scanning & auto discounts
-    ├── alerts.html            ← Smart alerts with offer-awareness & quick offer creation
-    ├── offers.html            ← Limited qty offers, expiry clearance, sell-now
-    ├── reports.html           ← Analytics with CSV export
-    └── suppliers.html         ← Supplier management with product linking & WhatsApp
+    ├── dashboard.html
+    ├── inventory.html
+    ├── billing.html
+    ├── alerts.html
+    ├── offers.html
+    ├── reports.html
+    ├── suppliers.html
+    ├── customers.html
+    ├── users.html
+    ├── order_mgmt.html
+    ├── landing.html
+    ├── offers_user.html
+    ├── notifications.html
+    ├── cart.html
+    └── orders.html
 ```
+
+**36 files total** — 12 JS, 15 pages + 2 root HTML, 2 CSS, 5 config/docs
 
 ---
 
-## 🚀 Setup & Run
+## Getting Started
 
 ### 1. Firebase Setup
-1. Go to [Firebase Console](https://console.firebase.google.com) → Create project
-2. Add a Web App → Copy the `firebaseConfig` object
-3. Paste into `js/firebase.js`
-4. Enable **Authentication → Email/Password**
-5. Enable **Firestore Database** (test mode for development)
+1. Create a project in [Firebase Console](https://console.firebase.google.com/)
+2. Enable **Authentication** → Email/Password provider
+3. Enable **Cloud Firestore**
+4. Deploy security rules from `firestore.rules`
+5. Copy your Firebase config into `js/firebase.js`
 
-### 2. Firestore Rules (for testing)
-```
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if true;
-    }
-  }
-}
-```
+### 2. Run Locally
 
-### 3. Run
+Any of these work — pick your favorite:
+
 ```bash
-# Option A: Python
+# Python
 python -m http.server 5500
 
-# Option B: Node
+# Node (npx, no install needed)
 npx serve .
 
-# Option C: Just open index.html in browser
+# Or just open index.html directly in a browser
 ```
 
----
+### 3. Default Admin Login
 
-## 🔥 What Makes ShopSmart Different
-
-1. **Category-aware intelligence** — A dairy product expiring in 3 days gets a red alert. Rice expiring in 30 days gets a yellow one. No false alarms.
-2. **AI-powered demand forecasting** — Predicts when products will run out, suggests optimal reorder quantities, and identifies items likely to expire unsold. The "AI" in the tagline earns its place.
-3. **Vernacular language support** — Full Hindi and Telugu UI so kirana owners in smaller cities can use the app in their language. One-click switch.
-4. **Offline-first architecture** — Service Worker + IndexedDB means billing and inventory work even without internet. Changes sync automatically when connectivity returns. Rural-ready.
-5. **Offer-aware alerts** — If you've already created a clearance offer for an expiring product, ShopSmart won't nag you with alerts. It auto-resolves them.
-6. **Barcode-powered speed** — Scan products to add to inventory or bill in seconds. Bulk scan mode handles stock intake without typing.
-7. **Limited quantity offers** — Create clearance offers for exactly the stock you want to move. Progress bar tracks how many have sold.
-8. **Smart clearance suggestions** — Products approaching expiry get auto-suggested discount percentages based on urgency. One click to create the offer.
-9. **Offer-aware billing** — Discounts are automatically detected and applied at checkout. No manual price overrides.
-10. **Zero infrastructure** — No server, no database setup, no Docker. Firebase handles everything. A shop owner can be up and running in 5 minutes.
-11. **WhatsApp-native reordering** — Low stock triggers pre-written reorder messages grouped by supplier, sent directly via WhatsApp.
-12. **GST-compliant** — Every bill splits CGST/SGST per Indian tax slabs (0%, 5%, 12%, 18%, 28%).
-13. **Supplier-product linking** — Assign dealers to products with searchable checkboxes. See stock health per supplier at a glance.
+| Email | Password |
+|-------|----------|
+| `admin@gmail.com` | `Admin123` |
 
 ---
 
-## 👥 Team Cloud Nine
+## What Makes ShopSmart Different
 
-| Name | Role |
-|------|------|
-| Soniya | Frontend & UI Design |
-| Lasya | Database & Firebase Integration |
-| Dedeepya | Business Logic & GST Engine |
-| Sameer | Architecture & Full-Stack Development |
+| # | Differentiator |
+|---|---------------|
+| 1 | **Zero infrastructure** — no server, no build, no dependencies |
+| 2 | **Offline-first** — full functionality without internet |
+| 3 | **Category-aware intelligence** — alerts tuned per product type |
+| 4 | **AI demand forecasting** — confidence-scored predictions |
+| 5 | **Vernacular support** — UI + dynamic product translation |
+| 6 | **WhatsApp-native reordering** — grouped by supplier |
+| 7 | **Complete RBAC** — 4 distinct roles with route guards |
+| 8 | **Dual order flow** — in-store POS + online customer orders |
+| 9 | **GST-compliant** — auto CGST/SGST on every transaction |
+| 10 | **2-step order completion** — staff fulfills, customer confirms |
 
 ---
 
-## 📄 License
-
-Built for Hackathon 2025. Open source for educational purposes.
+*Built with ❤️ by Team Cloud Nine — Hackathon 2026*

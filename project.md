@@ -67,6 +67,11 @@ User Browser → Firebase Auth (authentication)
 | 14 | Order Management | Accept, Pack, Bill, Ready, Customer confirms |
 | 15 | User Management | Admin creates Worker/Cashier accounts |
 | 16 | Notifications | Deals, new arrivals, expiring offers for customers |
+| 17 | AI Predictions v2 | Weighted avg, weekly patterns, confidence scores, seasonal |
+| 18 | Mobile Responsive | Sidebar drawer, touch-friendly, stacked layouts |
+| 19 | Dynamic Translation | Product names translate via MyMemory API |
+| 20 | Sequential Bills | BILL-00001 format via Firestore counter |
+| 21 | Smart Low-Stock | Dynamic reorder point from sales rate + lead time |
 
 ---
 
@@ -275,8 +280,8 @@ User Browser → Firebase Auth (authentication)
 | JS Modules | 12 |
 | HTML Pages | 17 (15 in pages/ + 2 root) |
 | CSS Files | 2 |
-| Firestore Collections | 7 |
-| Supported Languages | 3 (EN, HI, TE) |
+| Firestore Collections | 7 + settings |
+| Supported Languages | 3 (EN, HI, TE) + dynamic product translation |
 | User Roles | 4 |
 | GST Slabs | 5 (0%, 5%, 12%, 18%, 28%) |
 | Product Categories | 10 |
