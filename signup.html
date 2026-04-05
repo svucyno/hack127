@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ShopSmart — Sign Up</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div class="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <h1>🛒 ShopSmart</h1>
+      <p>Retail Intelligence Platform · Cloud Nine</p>
+    </div>
+
+    <div id="signup-error" style="display:none;background:#FFCDD2;color:#C62828;padding:10px 14px;border-radius:7px;font-size:13px;margin-bottom:14px;"></div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Full Name</label>
+      <input type="text" id="name" placeholder="John Doe" autocomplete="name"/>
+    </div>
+    
+    <div class="form-group" style="margin-bottom:14px">
+      <label>Email Address</label>
+      <input type="email" id="email" placeholder="owner@myshop.com" autocomplete="username"/>
+    </div>
+    
+    <div class="form-group" style="margin-bottom:20px">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••" autocomplete="new-password"/>
+    </div>
+
+    <button class="btn btn-primary" style="width:100%;justify-content:center;font-size:15px;padding:11px" onclick="doSignup()" id="signup-btn">
+      Create Account
+    </button>
+
+    <p style="text-align:center;margin-top:16px;font-size:13px;color:#666">
+      Already have an account? <a href="index.html" style="color:var(--primary);text-decoration:none;font-weight:600">Sign in</a>
+    </p>
+    <hr style="margin:20px 0;border-color:#eee"/>
+    <p style="text-align:center;font-size:11px;color:#aaa">ShopSmart v1.0 · Cloud Nine Team</p>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="js/firebase.js?v=5"></script>
+<script>
+  // Redirect if already logged in via Firebase Auth
+  auth.onAuthStateChanged(user => {
+    if (user) window.location.href = "pages/dashboard.html";
+  });
+
+  async function doSignup() {
+    const name  = document.getElementById("name").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const pass  = document.getElementById("password").value;
+    const errEl = document.getElementById("signup-error");
+    const btn   = document.getElementById("signup-btn");
+    
+    errEl.style.display = "none";
+    if (!name || !email || !pass) { 
+      errEl.textContent = "Please fill in all fields."; 
+      errEl.style.display = "block"; 
+      return; 
+    }
+    if (pass.length < 6) {
+      errEl.textContent = "Password must be at least 6 characters.";
+      errEl.style.display = "block";
+      return;
+    }
+    
+    btn.textContent = "Creating account…"; 
+    btn.disabled = true;
+    
+    try {
+      // 1. Create the user in Firebase Auth
+      const cred = await auth.createUserWithEmailAndPassword(email, pass);
+      
+      // 2. Update their profile with their name
+      await cred.user.updateProfile({ displayName: name });
+      
+      // 3. Save the user record in Firestore (setting role to "owner" since they signed up here)
+      await db.collection(COL.users).doc(cred.user.uid).set({
+        uid: cred.user.uid,
+        name: name,
+        email: email,
+        role: "owner",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      // After successful creation, they are logged in automatically, auth state change will redirect them.
+      window.location.href = "pages/dashboard.html";
+    } catch (e) {
+      errEl.textContent = e.message || "Failed to create account.";
+      errEl.style.display = "block";
+      btn.textContent = "Create Account"; 
+      btn.disabled = false;
+    }
+  }
+
+  document.addEventListener("keydown", e => { if (e.key === "Enter") doSignup(); });
+</script>
+</body>
+</html>
