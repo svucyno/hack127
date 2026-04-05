@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>My Orders — ShopSmart</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase.js?v=7"></script>
+  <script src="../js/utils.js?v=7"></script>
+  <script src="../js/auth_roles.js?v=1"></script>
+  <script src="../js/i18n.js?v=1"></script>
+  <script src="../js/layout.js?v=7"></script>
+  <script src="../js/cart_logic.js?v=1"></script>
+  <script src="../js/offline.js?v=1"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+var myOrders = [];
+
+async function loadOrders() {
+  try {
+    var user = auth.currentUser;
+    if (!user) { setTimeout(loadOrders, 500); return; }
+    var snap = await db.collection(COL.sales)
+      .where("userId", "==", user.uid)
+      .orderBy("createdAt", "desc")
+      .limit(50).get();
+    myOrders = snap.docs.map(function(d) { return Object.assign({id:d.id}, d.data()); });
+    renderOrders();
+  } catch(e) {
+    document.getElementById("orders-list").innerHTML = '<div style="color:var(--red);text-align:center;padding:24px">Error: ' + e.message + '</div>';
+  }
+}
+
+function getStatusBadge(status) {
+  var colors = { "Not Started": "badge-grey", "Packing": "badge-yellow", "Ready": "badge-green", "Completed": "badge-blue" };
+  var icons = { "Not Started": "⏳", "Packing": "📦", "Ready": "✅", "Completed": "🎉" };
+  return '<span class="badge ' + (colors[status]||"badge-grey") + '">' + (icons[status]||"") + ' ' + (status||"Unknown") + '</span>';
+}
+
+function renderOrders() {
+  var el = document.getElementById("orders-list");
+  if (!myOrders.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">📦</div><p>No orders yet. <a href="landing.html" style="color:var(--mint);font-weight:600">Start shopping</a></p></div>';
+    return;
+  }
+  el.innerHTML = myOrders.map(function(o) {
+    var dateStr = o.createdAt && o.createdAt.toDate ? o.createdAt.toDate().toLocaleDateString("en-IN", {day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}) : (o.date || "—");
+    var itemsList = (o.items||[]).map(function(i) { return i.name + ' ×' + i.qty; }).join(", ");
+    var preTag = o.isPreOrder ? '<span class="badge badge-blue" style="font-size:9px;margin-left:6px">⏰ Pre-Order</span>' : '';
+    return '<div style="background:var(--card-bg);border-radius:14px;box-shadow:var(--shadow);border:1px solid var(--border);padding:16px;margin-bottom:12px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:8px">' +
+        '<div>' +
+          '<div style="font-weight:700;font-size:14px;color:var(--text)">' + o.orderId + preTag + '</div>' +
+          '<div style="font-size:12px;color:var(--text-3);margin-top:2px">' + dateStr + '</div>' +
+        '</div>' +
+        '<div>' + getStatusBadge(o.status) + '</div>' +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--text-2);margin-top:8px">' + itemsList + '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px">' +
+        '<div style="font-weight:700;font-size:15px;color:var(--mint)">' + fmtCurrency(o.grandTotal) + '</div>' +
+        '<button class="btn btn-sm btn-outline" onclick="buyAgain(\'' + o.id + '\')">🔄 Buy Again</button>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+async function buyAgain(orderId) {
+  var order = myOrders.find(function(o) { return o.id === orderId; });
+  if (!order || !order.items) return;
+  // Fetch current product data
+  try {
+    for (var i = 0; i < order.items.length; i++) {
+      var item = order.items[i];
+      var doc = await db.collection(COL.products).doc(item.id).get();
+      if (doc.exists) {
+        var p = Object.assign({id: doc.id}, doc.data());
+        CartManager.addItem(p, null);
+      }
+    }
+    showToast("Items added to cart!");
+  } catch(e) {
+    showToast("Error: " + e.message, "error");
+  }
+}
+
+// Auto-refresh order status every 30 seconds
+var orderRefreshTimer = null;
+function startOrderRefresh() {
+  orderRefreshTimer = setInterval(function() {
+    if (document.visibilityState === "visible") loadOrders();
+  }, 30000);
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  buildLayout("📦 My Orders");
+  document.getElementById("page-content").innerHTML =
+    '<div class="card">' +
+      '<div class="card-title">📦 Order History</div>' +
+      '<div id="orders-list"><div style="text-align:center;padding:24px;color:#888">Loading orders…</div></div>' +
+    '</div>';
+  // Wait for auth to be ready
+  auth.onAuthStateChanged(function(user) {
+    if (user) { loadOrders(); startOrderRefresh(); }
+  });
+});
+</script>
+</body>
+</html>

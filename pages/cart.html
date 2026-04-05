@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Cart — ShopSmart</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase.js?v=7"></script>
+  <script src="../js/utils.js?v=7"></script>
+  <script src="../js/auth_roles.js?v=1"></script>
+  <script src="../js/i18n.js?v=1"></script>
+  <script src="../js/layout.js?v=7"></script>
+  <script src="../js/cart_logic.js?v=1"></script>
+  <script src="../js/offline.js?v=1"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+function renderCartPage() {
+  var summary = CartManager.getCartSummary();
+  var el = document.getElementById("cart-items-list");
+  var totEl = document.getElementById("cart-totals-section");
+  var btnEl = document.getElementById("checkout-btn");
+  var preBtn = document.getElementById("preorder-btn");
+
+  if (!summary.items.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:40px"><div class="empty-icon">🛒</div><p>Your cart is empty. <a href="landing.html" style="color:var(--mint);font-weight:600">Start shopping</a></p></div>';
+    totEl.innerHTML = '';
+    btnEl.disabled = true;
+    if (preBtn) preBtn.disabled = true;
+    return;
+  }
+  btnEl.disabled = false;
+  if (preBtn) preBtn.disabled = false;
+
+  el.innerHTML = summary.items.map(function(item) {
+    var offerLine = item.offerApplied ? '<div style="font-size:10px;color:var(--accent);font-weight:600">🎯 ' + item.offerApplied.label + '</div>' : '';
+    var priceHtml = item.offerApplied ? fmtCurrency(item.price) + ' <span style="text-decoration:line-through;color:#aaa;font-size:11px">' + fmtCurrency(item.originalPrice) + '</span>' : fmtCurrency(item.price);
+    return '<div class="cart-item">' +
+      '<div style="flex:1">' +
+        '<div class="cart-item-name">' + item.name + '</div>' +
+        '<div class="cart-item-price">' + priceHtml + ' × ' + item.qty + ' = ' + fmtCurrency(item.price * item.qty) + '</div>' +
+        offerLine +
+      '</div>' +
+      '<div class="qty-ctrl">' +
+        '<button class="qty-btn" onclick="changeCartQty(\'' + item.productId + '\',-1)">−</button>' +
+        '<span style="font-weight:700;min-width:20px;text-align:center">' + item.qty + '</span>' +
+        '<button class="qty-btn" onclick="changeCartQty(\'' + item.productId + '\',1)">+</button>' +
+        '<button class="btn-icon" onclick="removeCartItem(\'' + item.productId + '\')">🗑️</button>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+
+  var discRow = summary.totalDiscount > 0
+    ? '<div class="bill-total-row" style="color:var(--accent)"><span>🎯 Discount</span><span>−' + fmtCurrency(summary.totalDiscount) + '</span></div>' : '';
+  totEl.innerHTML =
+    '<div class="bill-total-row"><span>Subtotal</span><span>' + fmtCurrency(summary.subtotal) + '</span></div>' +
+    discRow +
+    '<div class="bill-total-row"><span>CGST</span><span>' + fmtCurrency(summary.cgst) + '</span></div>' +
+    '<div class="bill-total-row"><span>SGST</span><span>' + fmtCurrency(summary.sgst) + '</span></div>' +
+    '<div class="bill-total-row grand"><span>Grand Total</span><span>' + fmtCurrency(summary.grandTotal) + '</span></div>';
+}
+
+function changeCartQty(pid, delta) {
+  var cart = CartManager.getCart();
+  var item = cart.find(function(c) { return c.productId === pid; });
+  if (item) CartManager.updateQty(pid, item.qty + delta);
+  renderCartPage();
+}
+
+function removeCartItem(pid) {
+  CartManager.removeItem(pid);
+  renderCartPage();
+}
+
+async function doCheckout() {
+  var btn = document.getElementById("checkout-btn");
+  btn.disabled = true; btn.textContent = "Processing…";
+  try {
+    var user = auth.currentUser;
+    if (!user) { showToast("Please log in first.", "error"); return; }
+    var orderId = await CartManager.checkout(user.uid, user.displayName || user.email);
+    showToast("Order " + orderId + " placed!");
+    renderCartPage();
+    setTimeout(function() { window.location.href = "orders.html"; }, 1500);
+  } catch(e) {
+    showToast("Checkout failed: " + e.message, "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "✅ Place Order";
+  }
+}
+
+async function doPreOrder() {
+  var mins = prompt("Arriving in how many minutes?", "10");
+  if (!mins || isNaN(parseInt(mins))) return;
+  var btn = document.getElementById("preorder-btn");
+  btn.disabled = true; btn.textContent = "Placing pre-order…";
+  try {
+    var user = auth.currentUser;
+    if (!user) { showToast("Please log in first.", "error"); return; }
+    var orderId = await CartManager.preOrder(user.uid, user.displayName || user.email, parseInt(mins));
+    showToast("Pre-order " + orderId + " placed! Arriving in " + mins + " min.");
+    renderCartPage();
+    setTimeout(function() { window.location.href = "orders.html"; }, 1500);
+  } catch(e) {
+    showToast("Pre-order failed: " + e.message, "error");
+  } finally {
+    btn.disabled = false; btn.textContent = "⏰ Pre-Order (10 min)";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  buildLayout("🛒 My Cart");
+  document.getElementById("page-content").innerHTML =
+    '<div class="card" style="margin-bottom:14px">' +
+      '<div class="card-title">🛒 Cart Items</div>' +
+      '<div id="cart-items-list"></div>' +
+    '</div>' +
+    '<div class="card" style="margin-bottom:14px">' +
+      '<div class="card-title">💰 Order Summary</div>' +
+      '<div id="cart-totals-section"></div>' +
+    '</div>' +
+    '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
+      '<button class="btn btn-primary" id="checkout-btn" onclick="doCheckout()" disabled style="flex:1;justify-content:center;padding:14px;font-size:15px">✅ Place Order</button>' +
+      '<button class="btn btn-outline" id="preorder-btn" onclick="doPreOrder()" disabled style="justify-content:center;padding:14px;font-size:13px">⏰ Pre-Order (10 min)</button>' +
+    '</div>';
+  renderCartPage();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: get user role
+    function userRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() { return userRole() == 'Admin'; }
+    function isWorker() { return userRole() == 'Worker'; }
+    function isCashier() { return userRole() == 'Cashier'; }
+    function isUser() { return userRole() == 'User'; }
+    function isAuth() { return request.auth != null; }
+
+    // Products: read all auth, write Admin/Worker
+    match /products/{doc} {
+      allow read: if isAuth();
+      allow write: if isAdmin() || isWorker();
+    }
+
+    // Sales: create by Cashier/User, read by role
+    match /sales/{doc} {
+      allow create: if isAuth() && (isAdmin() || isCashier() || isUser());
+      allow read: if isAdmin()
+        || (isCashier() && resource.data.date == request.time.toMillis().date())
+        || (isUser() && resource.data.userId == request.auth.uid);
+      allow update: if isAdmin() || isCashier();
+      allow delete: if isAdmin();
+    }
+
+    // Users: read self, write Admin
+    match /users/{userId} {
+      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuth() && request.auth.uid == userId;
+      allow update: if isAdmin() || request.auth.uid == userId;
+      allow delete: if isAdmin();
+    }
+
+    // Offers: read all, write Admin
+    match /offers/{doc} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // Alerts: read all auth, write Admin/Worker
+    match /alerts/{doc} {
+      allow read: if isAuth();
+      allow write: if isAdmin() || isWorker();
+    }
+
+    // Suppliers: read all auth, write Admin/Worker
+    match /suppliers/{doc} {
+      allow read: if isAuth();
+      allow write: if isAdmin() || isWorker();
+    }
+
+    // Customers: read all auth, write Admin
+    match /customers/{doc} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+  }
+}

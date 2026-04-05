@@ -8,6 +8,10 @@ const NAV_ICONS = {
   Reports:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
   Suppliers: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
   Customers: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+  Landing:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  Shop:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+  Cart:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>`,
+  Orders:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>`,
 };
 
 // Theme management
@@ -36,16 +40,27 @@ function updateThemeIcon(theme) {
 
 // Injects sidebar + topbar into any page
 function buildLayout(pageTitle) {
-  const nav = [
-    { href: "../pages/dashboard.html",  key: "Dashboard",  label: typeof t === 'function' ? t("nav.dashboard") : "Dashboard" },
-    { href: "../pages/inventory.html",  key: "Inventory",  label: typeof t === 'function' ? t("nav.inventory") : "Inventory" },
-    { href: "../pages/billing.html",    key: "Billing",    label: typeof t === 'function' ? t("nav.billing") : "Billing" },
-    { href: "../pages/alerts.html",     key: "Alerts",     label: typeof t === 'function' ? t("nav.alerts") : "Alerts" },
-    { href: "../pages/offers.html",     key: "Offers",     label: typeof t === 'function' ? t("nav.offers") : "Offers" },
-    { href: "../pages/reports.html",    key: "Reports",    label: typeof t === 'function' ? t("nav.reports") : "Reports" },
-    { href: "../pages/suppliers.html",  key: "Suppliers",  label: typeof t === 'function' ? t("nav.suppliers") : "Suppliers" },
-    { href: "../pages/customers.html", key: "Customers", label: typeof t === 'function' ? t("nav.customers") : "Customers" },
+  // All possible nav items
+  var allNav = [
+    { href: "../pages/dashboard.html",   key: "Dashboard",   navKey: "dashboard",   label: typeof t === 'function' ? t("nav.dashboard") : "Dashboard" },
+    { href: "../pages/inventory.html",   key: "Inventory",   navKey: "inventory",   label: typeof t === 'function' ? t("nav.inventory") : "Inventory" },
+    { href: "../pages/billing.html",     key: "Billing",     navKey: "billing",     label: typeof t === 'function' ? t("nav.billing") : "Billing" },
+    { href: "../pages/alerts.html",      key: "Alerts",      navKey: "alerts",      label: typeof t === 'function' ? t("nav.alerts") : "Alerts" },
+    { href: "../pages/offers.html",      key: "Offers",      navKey: "offers",      label: typeof t === 'function' ? t("nav.offers") : "Offers" },
+    { href: "../pages/reports.html",     key: "Reports",     navKey: "reports",     label: typeof t === 'function' ? t("nav.reports") : "Reports" },
+    { href: "../pages/suppliers.html",   key: "Suppliers",   navKey: "suppliers",   label: typeof t === 'function' ? t("nav.suppliers") : "Suppliers" },
+    { href: "../pages/customers.html",   key: "Customers",   navKey: "customers",   label: typeof t === 'function' ? t("nav.customers") : "Customers" },
+    { href: "../pages/landing.html",     key: "Landing",     navKey: "landing",     label: typeof t === 'function' ? t("nav.dashboard") : "Shop" },
+    { href: "../pages/offers_user.html", key: "Shop",        navKey: "offers_user", label: typeof t === 'function' ? t("nav.offers") : "Deals" },
+    { href: "../pages/cart.html",        key: "Cart",        navKey: "cart",        label: "Cart" },
+    { href: "../pages/orders.html",      key: "Orders",      navKey: "orders",      label: "Orders" },
   ];
+
+  // Filter nav by role
+  var role = typeof getCurrentUserRole === 'function' ? getCurrentUserRole() : 'Admin';
+  var allowedKeys = typeof getNavItemsForRole === 'function' ? getNavItemsForRole(role) : allNav.map(function(n){return n.navKey;});
+  var nav = allNav.filter(function(n) { return allowedKeys.indexOf(n.navKey) !== -1; });
+  var roleLabel = role || "Store Owner";
 
   const navHTML = nav.map(n =>
     `<a href="${n.href}" class="nav-link" data-label="${n.label}">
@@ -75,7 +90,7 @@ function buildLayout(pageTitle) {
             <div class="user-avatar" id="user-avatar">O</div>
             <div class="user-info">
               <strong id="user-name">Owner</strong>
-              <span id="user-role">${typeof t === 'function' ? t("layout.owner") : "Store Owner"}</span>
+              <span id="user-role">${roleLabel}</span>
             </div>
           </div>
           <button class="btn-logout" onclick="logout()">

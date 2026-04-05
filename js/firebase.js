@@ -22,16 +22,9 @@ var COL = {
   offers    : "offers",
   suppliers : "suppliers",
   customers : "customers",
+  users     : "users",
 };
 
-// ── Auth helpers (no-op for testing) ───────────────────────────────────────
-function requireAuth() {}
-
-function getUserRole() { return "owner"; }
-
-function logout() {
-  auth.signOut().catch(function(){});
-  window.location.href = window.location.pathname.indexOf("/pages/") !== -1
-    ? "../index.html"
-    : "index.html";
-}
+// ── Auth helpers ───────────────────────────────────────────────────────────
+// Role-based auth is handled by js/auth_roles.js
+// logout() is defined in auth_roles.js

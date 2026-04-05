@@ -1,9 +1,11 @@
 var CACHE_NAME = "shopsmart-v2";
 var APP_SHELL = ["/", "/index.html", "/signup.html", "/css/style.css", "/css/donut-chart-refined.css",
-  "/js/firebase.js", "/js/utils.js", "/js/layout.js", "/js/i18n.js", "/js/billing.js", "/js/billing2.js",
+  "/js/firebase.js", "/js/utils.js", "/js/layout.js", "/js/i18n.js", "/js/auth_roles.js",
+  "/js/billing.js", "/js/billing2.js", "/js/cart_logic.js",
   "/js/barcode-scanner.js", "/js/predictions.js", "/js/donut-chart-fixed.js", "/js/offline.js",
   "/pages/dashboard.html", "/pages/inventory.html", "/pages/billing.html", "/pages/alerts.html",
-  "/pages/offers.html", "/pages/reports.html", "/pages/suppliers.html"];
+  "/pages/offers.html", "/pages/reports.html", "/pages/suppliers.html", "/pages/customers.html",
+  "/pages/landing.html", "/pages/offers_user.html", "/pages/cart.html", "/pages/orders.html"];
 
 self.addEventListener("install", function(e) {
   e.waitUntil(caches.open(CACHE_NAME).then(function(c) { return c.addAll(APP_SHELL).catch(function(){}); }));

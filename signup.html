@@ -88,13 +88,12 @@
         uid: cred.user.uid,
         name: name,
         email: email,
-        role: "owner",
+        role: "User",
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         lastLogin: firebase.firestore.FieldValue.serverTimestamp()
       });
 
-      // After successful creation, they are logged in automatically, auth state change will redirect them.
-      window.location.href = "pages/dashboard.html";
+      window.location.href = "pages/landing.html";
     } catch (e) {
       errEl.textContent = e.message || "Failed to create account.";
       errEl.style.display = "block";

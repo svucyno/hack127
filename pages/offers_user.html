@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Deals — ShopSmart</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase.js?v=7"></script>
+  <script src="../js/utils.js?v=7"></script>
+  <script src="../js/auth_roles.js?v=1"></script>
+  <script src="../js/i18n.js?v=1"></script>
+  <script src="../js/layout.js?v=7"></script>
+  <script src="../js/cart_logic.js?v=1"></script>
+  <script src="../js/offline.js?v=1"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+var offers = [], products = [];
+
+async function loadDeals() {
+  try {
+    var results = await Promise.all([
+      db.collection(COL.offers).where("active","==",true).orderBy("createdAt","desc").get(),
+      db.collection(COL.products).get()
+    ]);
+    var todayStr = today();
+    offers = results[0].docs.map(function(d) { return Object.assign({id:d.id}, d.data()); })
+      .filter(function(o) { return (!o.validUntil || o.validUntil >= todayStr) && (!o.maxQty || (o.soldQty||0) < o.maxQty); });
+    products = results[1].docs.map(function(d) { return Object.assign({id:d.id}, d.data()); });
+    renderDeals();
+  } catch(e) {
+    document.getElementById("deals-grid").innerHTML = '<div style="color:var(--red);text-align:center;padding:24px">Error: ' + e.message + '</div>';
+  }
+}
+
+function renderDeals() {
+  var el = document.getElementById("deals-grid");
+  if (!offers.length) { el.innerHTML = '<div class="empty-state"><div class="empty-icon">🏷️</div><p>No active deals right now. Check back soon!</p></div>'; return; }
+  el.innerHTML = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px">' +
+    offers.map(function(o) {
+      var p = products.find(function(x) { return x.id === o.productId; });
+      if (!p) return '';
+      var badge = o.type === "percent" ? o.value + "% OFF" : o.type === "flat" ? "₹" + o.value + " OFF" : "Buy " + o.buyQty + " Get " + o.getQty;
+      var disc = o.type === "percent" ? +(p.sellingPrice * o.value / 100).toFixed(2) : (o.type === "flat" ? Math.min(o.value, p.sellingPrice) : 0);
+      var newPrice = +(p.sellingPrice - disc).toFixed(2);
+      // Countdown timer
+      var countdownHtml = '';
+      if (o.validUntil) {
+        var dLeft = daysUntil(o.validUntil);
+        if (dLeft <= 3) countdownHtml = '<div style="font-size:11px;color:var(--red);font-weight:700;margin-top:4px">⏰ Ends in ' + dLeft + ' day' + (dLeft!==1?'s':'') + '</div>';
+        else countdownHtml = '<div style="font-size:11px;color:var(--text-3);margin-top:4px">Valid till ' + fmtDate(o.validUntil) + '</div>';
+      }
+      // Hot sale badge
+      var hotBadge = (p.salesCount30 || 0) > 10 ? '<span style="background:#ff6b6b;color:#fff;padding:2px 8px;border-radius:8px;font-size:9px;font-weight:700;margin-left:6px">🔥 HOT</span>' : '';
+      // Limited qty
+      var qtyBar = '';
+      if (o.maxQty) {
+        var sold = o.soldQty || 0;
+        var pct = Math.min((sold/o.maxQty)*100, 100);
+        qtyBar = '<div style="margin-top:6px"><div style="font-size:10px;color:var(--text-3)">' + sold + '/' + o.maxQty + ' claimed</div><div style="height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:2px"><div style="height:100%;width:' + pct + '%;background:var(--mint);border-radius:2px"></div></div></div>';
+      }
+      var reasonTag = o.reason ? '<span class="badge badge-orange" style="font-size:9px">' + o.reason + '</span>' : '';
+      return '<div style="background:var(--card-bg);border-radius:14px;box-shadow:var(--shadow);border:1px solid var(--border);padding:18px;position:relative">' +
+        '<div style="position:absolute;top:12px;right:12px;background:linear-gradient(135deg,var(--accent-l),var(--accent));color:#fff;padding:4px 12px;border-radius:14px;font-size:11px;font-weight:700">' + badge + '</div>' +
+        '<div style="font-size:11px;color:var(--text-3)">' + p.category + ' ' + hotBadge + '</div>' +
+        '<div style="font-weight:700;font-size:15px;margin:6px 0;color:var(--text)">' + p.name + '</div>' +
+        '<div style="font-size:11px;color:#888">' + (p.company||"") + '</div>' +
+        reasonTag +
+        '<div style="margin-top:8px;font-size:16px"><span style="color:var(--mint);font-weight:700">' + fmtCurrency(newPrice) + '</span> <span style="text-decoration:line-through;color:#aaa;font-size:12px">' + fmtCurrency(p.sellingPrice) + '</span></div>' +
+        '<div style="font-size:12px;color:var(--mint);font-weight:600">You save ' + fmtCurrency(disc) + '</div>' +
+        countdownHtml + qtyBar +
+        '<button class="btn btn-sm btn-primary" style="width:100%;justify-content:center;margin-top:10px" onclick="addDealToCart(\'' + p.id + '\',\'' + o.id + '\')">🛒 Add to Cart</button>' +
+      '</div>';
+    }).join("") + '</div>';
+}
+
+function addDealToCart(pid, oid) {
+  var p = products.find(function(x) { return x.id === pid; });
+  var o = offers.find(function(x) { return x.id === oid; });
+  if (p) CartManager.addItem(p, o);
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  buildLayout("🏷️ Deals & Offers");
+  document.getElementById("page-content").innerHTML =
+    '<div class="card"><div class="card-title">🔥 Active Deals</div><div id="deals-grid"><div style="text-align:center;padding:24px;color:#888">Loading deals…</div></div></div>';
+  loadDeals();
+});
+</script>
+</body>
+</html>
