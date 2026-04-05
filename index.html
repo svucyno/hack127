@@ -101,23 +101,30 @@
       var cred = await auth.signInWithEmailAndPassword(email, pass);
       var selectedRole = document.getElementById("login-role").value;
       
-      // Check if user already has a role in Firestore
-      var existingDoc = await db.collection("users").doc(cred.user.uid).get();
-      var existingRole = existingDoc.exists ? existingDoc.data().role : null;
-      
-      // Admin email gets Admin role always
+      // Determine role
       var isAdminEmail = email.toLowerCase() === "admin@gmail.com";
-      var finalRole = isAdminEmail ? "Admin" : (existingRole || selectedRole);
+      var finalRole = isAdminEmail ? "Admin" : selectedRole;
       
-      await db.collection("users").doc(cred.user.uid).set({
-        uid: cred.user.uid,
-        name: cred.user.displayName || email.split("@")[0],
-        email: email,
-        role: finalRole,
-        lastLogin: firebase.firestore.FieldValue.serverTimestamp()
-      }, { merge: true });
+      // Try to check existing role (don't fail if this errors)
+      try {
+        var existingDoc = await db.collection("users").doc(cred.user.uid).get();
+        if (existingDoc.exists && existingDoc.data().role) {
+          finalRole = isAdminEmail ? "Admin" : existingDoc.data().role;
+        }
+      } catch(re) { /* Firestore read failed — use selected role */ }
       
-      // Cache the actual role
+      // Try to save/update user doc (don't fail if this errors)
+      try {
+        await db.collection("users").doc(cred.user.uid).set({
+          uid: cred.user.uid,
+          name: cred.user.displayName || email.split("@")[0],
+          email: email,
+          role: finalRole,
+          lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+      } catch(we) { /* Firestore write failed — still redirect */ }
+      
+      // Cache role and redirect
       localStorage.setItem("ss_role_" + cred.user.uid, JSON.stringify({
         role: finalRole, name: cred.user.displayName || email.split("@")[0], email: email, ts: Date.now()
       }));

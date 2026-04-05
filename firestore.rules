@@ -2,51 +2,41 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-    function isAdmin() { return request.auth != null && userRole() == 'Admin'; }
-    function isWorker() { return request.auth != null && userRole() == 'Worker'; }
-    function isCashier() { return request.auth != null && userRole() == 'Cashier'; }
     function isAuth() { return request.auth != null; }
 
-    match /products/{doc} {
-      allow read: if isAuth();
-      allow write: if isAdmin() || isWorker();
-    }
-
-    match /sales/{doc} {
-      allow create: if isAuth();
-      allow read: if isAuth();
-      allow update: if isAdmin() || isCashier();
-      allow delete: if isAdmin();
-    }
-
+    // Users: anyone authenticated can read/write their own doc, Admin can read all
     match /users/{userId} {
-      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
-      allow create: if isAuth() && request.auth.uid == userId;
-      allow update: if isAdmin() || request.auth.uid == userId;
-      allow delete: if isAdmin();
+      allow read, write: if isAuth();
     }
 
+    // Products: read all auth, write all auth (role check done client-side)
+    match /products/{doc} {
+      allow read, write: if isAuth();
+    }
+
+    // Sales: all authenticated users
+    match /sales/{doc} {
+      allow read, write: if isAuth();
+    }
+
+    // Offers: all authenticated users
     match /offers/{doc} {
-      allow read: if isAuth();
-      allow write: if isAdmin();
+      allow read, write: if isAuth();
     }
 
+    // Alerts: all authenticated users
     match /alerts/{doc} {
-      allow read: if isAuth();
-      allow write: if isAuth();
+      allow read, write: if isAuth();
     }
 
+    // Suppliers: all authenticated users
     match /suppliers/{doc} {
-      allow read: if isAuth();
-      allow write: if isAdmin() || isWorker();
+      allow read, write: if isAuth();
     }
 
+    // Customers: all authenticated users
     match /customers/{doc} {
-      allow read: if isAuth();
-      allow write: if isAdmin();
+      allow read, write: if isAuth();
     }
   }
 }

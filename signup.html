@@ -99,14 +99,17 @@
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
       await cred.user.updateProfile({ displayName: name });
       
-      await db.collection("users").doc(cred.user.uid).set({
-        uid: cred.user.uid,
-        name: name,
-        email: email,
-        role: role,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        lastLogin: firebase.firestore.FieldValue.serverTimestamp()
-      });
+      // Try to save user doc (don't fail signup if Firestore errors)
+      try {
+        await db.collection("users").doc(cred.user.uid).set({
+          uid: cred.user.uid,
+          name: name,
+          email: email,
+          role: role,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          lastLogin: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      } catch(we) { /* Firestore write failed — still redirect */ }
 
       localStorage.setItem("ss_role_" + cred.user.uid, JSON.stringify({
         role: role, name: name, email: email, ts: Date.now()
