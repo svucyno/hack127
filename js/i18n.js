@@ -13,6 +13,7 @@ var TRANSLATIONS = {
   "nav.offers":       { en: "Offers",      hi: "ऑफ़र",         te: "ఆఫర్లు" },
   "nav.reports":      { en: "Reports",     hi: "रिपोर्ट",      te: "రిపోర్ట్‌లు" },
   "nav.suppliers":    { en: "Suppliers",   hi: "सप्लायर",      te: "సరఫరాదారులు" },
+  "nav.customers":    { en: "Customers",   hi: "ग्राहक",        te: "కస్టమర్లు" },
   "layout.signout":   { en: "Sign Out",    hi: "साइन आउट",    te: "సైన్ అవుట్" },
   "layout.owner":     { en: "Store Owner", hi: "दुकान मालिक",  te: "దుకాణ యజమాని" },
   "action.add":       { en: "Add",         hi: "जोड़ें",        te: "జోడించు" },

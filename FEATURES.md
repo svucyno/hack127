@@ -245,7 +245,7 @@ This document details every feature implemented in ShopSmart, how it works, and 
   - Shows translated offline banner when disconnected
   - Auto-syncs pending writes and re-caches data when reconnected
   - Toast notification showing how many changes were synced
-- **Service Worker registration:** All 9 HTML pages register the SW with correct relative path
+- **Service Worker registration:** All 10 HTML pages (8 in pages/ + index.html + signup.html) register the SW with correct relative path
 
 **Files:** `sw.js`, `js/offline.js`, all HTML pages
 
@@ -296,8 +296,28 @@ This document details every feature implemented in ShopSmart, how it works, and 
 - **Auto coupons:** Generated when customer reaches a new tier (Silver: 5% off, Gold: 10%, Platinum: 15%)
 - **Billing integration:** Customer lookup by phone, points display, coupon application, points redemption
 - **Customer page:** Full CRUD, search, tier badges, purchase history, coupon management
+- **Sidebar navigation:** Customers link added to sidebar with people icon
 
 **Files:** `pages/customers.html`, `js/billing.js`, `js/billing2.js`, `js/utils.js`, `js/firebase.js`
+
+---
+
+## 16. 🗂️ Category Navigation Grid
+
+**What it does:** Horizontal category chip selector at the top of Inventory and Billing pages for fast product filtering.
+
+**How it works:**
+- `buildCatNav()` in `js/utils.js` generates a scrollable row of neumorphic category chips
+- Each chip shows: category emoji icon (`CAT_ICONS` map), category name, product count badge
+- 11 categories: All, Groceries 🌾, Dairy 🥛, Beverages 🥤, Personal Care 🧴, Stationery ✏️, Electronics 🔌, Snacks 🍿, Medicines 💊, Cleaning 🧹, Other 📦
+- Clicking a chip filters the content below (table in inventory, product list in billing)
+- Active chip gets cyan highlight with inset shadow and gradient accent bar
+- "All" chip shows all products (no filter)
+- **Inventory:** Category nav sits above search bar, replaces the old category dropdown
+- **Billing:** Category nav sits above the product list panel for quick narrowing during checkout
+- Follows existing neumorphic design — same shadows, border radius, theme support
+
+**Files:** `js/utils.js` (buildCatNav, CAT_ICONS), `pages/inventory.html` (renderCatNav, selectInvCat), `js/billing.js` (renderBillCatNav, selectBillCat), `js/billing2.js` (bill-cat-nav container), `css/style.css` (.cat-nav, .cat-chip styles)
 
 ---
 
@@ -315,3 +335,15 @@ This document details every feature implemented in ShopSmart, how it works, and 
 | AI/ML | Custom prediction engine (sales-based) |
 
 **Zero dependencies. No npm. No build step. No framework.**
+
+---
+
+## 📁 File Summary
+
+| Area | Count | Files |
+|------|-------|-------|
+| Root | 4 | index.html, signup.html, sw.js, .gitignore |
+| JS | 10 | firebase, utils, i18n, layout, billing, billing2, barcode-scanner, predictions, offline, donut-chart-fixed |
+| Pages | 8 | dashboard, inventory, billing, alerts, offers, reports, suppliers, customers |
+| CSS | 2 | style.css, donut-chart-refined.css |
+| Docs | 2 | README.md, FEATURES.md |
