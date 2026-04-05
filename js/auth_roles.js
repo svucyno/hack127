@@ -16,7 +16,8 @@ var PAGE_PERMISSIONS = {
   "landing.html":    ["User"],
   "offers_user.html":["User"],
   "cart.html":       ["User"],
-  "orders.html":     ["User"]
+  "orders.html":     ["User"],
+  "notifications.html": ["User"]
 };
 
 var ROLE_DEFAULT_PAGE = { "Admin":"dashboard.html", "Worker":"dashboard.html", "Cashier":"dashboard.html", "User":"landing.html" };
@@ -25,7 +26,7 @@ var ROLE_NAV = {
   "Admin":   ["dashboard","inventory","billing","alerts","offers","reports","suppliers","customers","users"],
   "Worker":  ["dashboard","inventory","alerts","suppliers"],
   "Cashier": ["dashboard","billing","alerts","reports"],
-  "User":    ["landing","offers_user","cart","orders"]
+  "User":    ["landing","offers_user","cart","orders","notifications"]
 };
 
 var _currentUserRole = null;
