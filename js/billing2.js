@@ -78,7 +78,17 @@ async function confirmBill() {
     return sum;
   }, 0);
   var profit = cart.reduce(function(s, i) { return s + (i.price - i.cost) * i.qty; }, 0);
-  var billId = "BILL-" + Date.now();
+  // Sequential bill number from Firestore counter
+  var billId;
+  try {
+    var counterRef = db.collection("settings").doc("billCounter");
+    var counterDoc = await counterRef.get();
+    var nextNum = counterDoc.exists ? (counterDoc.data().count || 0) + 1 : 1;
+    await counterRef.set({ count: nextNum });
+    billId = "BILL-" + String(nextNum).padStart(5, "0");
+  } catch(e) {
+    billId = "BILL-" + Date.now(); // fallback
+  }
   var dateStr = today();
   var nowTs = firebase.firestore.FieldValue.serverTimestamp();
   var cartSnapshot = cart.map(function(i) { return Object.assign({}, i); });

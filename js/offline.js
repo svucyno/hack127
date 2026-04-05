@@ -93,17 +93,42 @@ var OfflineManager = (function() {
   function showOfflineBanner() {
     if (document.getElementById("offline-banner")) return;
     var b = document.createElement("div"); b.id = "offline-banner"; b.className = "offline-banner";
-    b.innerHTML = '<span>📡 ' + (typeof t === "function" ? t("offline.banner") : "You're offline.") + '</span>';
+    b.innerHTML = '<span>📡 ' + (typeof t === "function" ? t("offline.banner") : "You're offline.") + '</span>' +
+      '<span id="offline-pending" style="margin-left:8px;font-size:11px"></span>';
     document.body.appendChild(b);
     setTimeout(function() { b.classList.add("show"); }, 10);
+    // Show pending count
+    updatePendingCount();
+  }
+
+  async function updatePendingCount() {
+    try {
+      var db2 = await OfflineManager.openDB();
+      var pending = await new Promise(function(resolve) {
+        var tx = db2.transaction("pendingWrites", "readonly");
+        var req = tx.objectStore("pendingWrites").getAll();
+        req.onsuccess = function() { resolve(req.result || []); };
+        req.onerror = function() { resolve([]); };
+      });
+      var el = document.getElementById("offline-pending");
+      if (el && pending.length > 0) el.textContent = "(" + pending.length + " pending)";
+    } catch(e) {}
   }
   function hideOfflineBanner() {
     var b = document.getElementById("offline-banner");
-    if (b) { b.classList.remove("show"); setTimeout(function() { b.remove(); }, 400); }
-    OfflineManager.syncPendingWrites().then(function(r) {
-      if (r.synced > 0 && typeof showToast === "function") showToast("Back online! " + r.synced + " changes synced.");
-    });
-    OfflineManager.cacheFirestoreData();
+    if (b) {
+      // Show sync button briefly
+      b.innerHTML = '<span>🔄 Back online!</span> <button onclick="OfflineManager.syncPendingWrites().then(function(r){if(r.synced>0 && typeof showToast===\'function\') showToast(r.synced+\' changes synced!\');document.getElementById(\'offline-banner\').remove();})" style="margin-left:8px;padding:4px 12px;border-radius:8px;border:none;background:#fff;color:#333;font-size:11px;font-weight:600;cursor:pointer">Sync Now</button>';
+      // Auto-sync after 3 seconds if user doesn't click
+      setTimeout(function() {
+        OfflineManager.syncPendingWrites().then(function(r) {
+          if (r.synced > 0 && typeof showToast === "function") showToast(r.synced + " changes synced!");
+        });
+        OfflineManager.cacheFirestoreData();
+        var banner = document.getElementById("offline-banner");
+        if (banner) { banner.classList.remove("show"); setTimeout(function() { banner.remove(); }, 400); }
+      }, 3000);
+    }
   }
   window.addEventListener("offline", showOfflineBanner);
   window.addEventListener("online", hideOfflineBanner);

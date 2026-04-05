@@ -349,7 +349,9 @@ async function loadDashboard() {
             '<span>Stock: <strong style="color:' + stockColor + '">' + pred.currentQty + '</strong>/' + pred.maxStock + '</span>' +
             '<span>Rate: <strong>' + pred.dailyRate + '</strong>/day</span>' +
             '<span>Runs out: <strong>' + stockoutText + '</strong></span>' +
+            (pred.confidence ? '<span style="color:' + pred.confidence.color + '">⬤ ' + pred.confidence.label + '</span>' : '') +
           '</div>' +
+          (pred.weeklyPattern && pred.weeklyPattern.hasPattern ? '<div style="font-size:10px;color:var(--text-3);margin-top:3px">📊 Peak: ' + pred.weeklyPattern.peakDay + ' (' + pred.weeklyPattern.peakAvg + '/day) · Low: ' + pred.weeklyPattern.lowDay + '</div>' : '') +
           alertsHtml +
           reorderHtml +
         '</div>';

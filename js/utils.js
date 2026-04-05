@@ -123,12 +123,30 @@ async function runAlertEngine() {
     var thresholds = getExpiryThresholds(p.category);
     var hasCover = coveredProducts.has(id);
 
-    // Low stock (not affected by offers)
-    if (pct <= 10) {
+    // Smart low stock — dynamic threshold based on sales rate
+    // If we have sales data, use: reorder point = (avg daily sales * lead time) + safety stock
+    // Otherwise fall back to 10% of max
+    var isLowStock = false;
+    var lowStockMsg = "";
+    if (p.salesRate && p.salesRate > 0) {
+      var leadTime = p.leadTimeDays || 3; // default 3 days
+      var safetyStock = Math.ceil(p.salesRate * 2); // 2 days safety
+      var reorderPoint = Math.ceil(p.salesRate * leadTime) + safetyStock;
+      var daysLeft = Math.floor(qty / p.salesRate);
+      if (qty <= reorderPoint) {
+        isLowStock = true;
+        lowStockMsg = "Order now — " + p.name + " will run out in ~" + daysLeft + " days (reorder point: " + reorderPoint + " units).";
+      }
+    } else if (pct <= 10) {
+      isLowStock = true;
+      lowStockMsg = "Low stock: " + p.name + " has only " + qty + " units left (" + pct.toFixed(1) + "% of max).";
+    }
+
+    if (isLowStock) {
       var key = "lowstock_" + id;
       if (!existingKeys.has(key)) {
         var ref = db.collection(COL.alerts).doc();
-        batch.set(ref, { type: "lowstock", key: key, productId: id, productName: p.name, category: p.category, message: "Low stock: " + p.name + " has only " + qty + " units left (" + pct.toFixed(1) + "% of max).", resolved: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        batch.set(ref, { type: "lowstock", key: key, productId: id, productName: p.name, category: p.category, message: lowStockMsg, resolved: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
       }
     }
 
