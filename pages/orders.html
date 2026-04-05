@@ -91,7 +91,37 @@ function renderOrders() {
 }
 
 async function confirmReceived(id) {
-  if (!confirmAction("Confirm you have received this order?")) return;
+  // Show custom confirmation popup
+  var overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999";
+  var popup = document.createElement("div");
+  popup.style.cssText = "background:var(--card-bg,#e8e3dc);border-radius:20px;padding:32px;max-width:380px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);border:1px solid var(--border,#ccc)";
+  popup.innerHTML =
+    '<div style="font-size:48px;margin-bottom:12px">🤝</div>' +
+    '<div style="font-size:18px;font-weight:700;color:var(--text,#333);margin-bottom:8px">Confirm Pickup</div>' +
+    '<div style="font-size:13px;color:var(--text-2,#666);margin-bottom:20px">Have you received all items in this order?</div>' +
+    '<div style="display:flex;gap:12px;justify-content:center">' +
+      '<button id="confirm-no" style="padding:10px 28px;border-radius:12px;font-size:14px;font-weight:600;border:1px solid var(--border,#ccc);cursor:pointer;background:var(--card-bg,#e8e3dc);color:var(--text,#333)">Cancel</button>' +
+      '<button id="confirm-yes" style="padding:10px 28px;border-radius:12px;font-size:14px;font-weight:600;border:none;cursor:pointer;background:linear-gradient(135deg,#3ab87d,#2a9d66);color:#fff">Yes, Received</button>' +
+    '</div>';
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+
+  return new Promise(function(resolve) {
+    popup.querySelector("#confirm-yes").addEventListener("click", function() {
+      overlay.remove();
+      doConfirmReceived(id);
+    });
+    popup.querySelector("#confirm-no").addEventListener("click", function() {
+      overlay.remove();
+    });
+    overlay.addEventListener("click", function(e) {
+      if (e.target === overlay) overlay.remove();
+    });
+  });
+}
+
+async function doConfirmReceived(id) {
   try {
     var o = myOrders.find(function(x){return x.id===id;});
     // Mark as completed
