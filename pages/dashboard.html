@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Dashboard — ShopSmart</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <link rel="stylesheet" href="../css/donut-chart-refined.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase.js?v=5"></script>
+  <script src="../js/utils.js?v=5"></script>
+  <script src="../js/layout.js?v=5"></script>
+  <script src="../js/donut-chart-fixed.js?v=1"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+async function loadDashboard() {
+  var content = document.getElementById("page-content");
+  content.innerHTML = '<div style="text-align:center;padding:40px;color:#888">Loading dashboard…</div>';
+  try {
+
+  var todayStr = today();
+  var thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  // Fetch today's sales
+  var salesSnap = await db.collection(COL.sales)
+    .where("date", "==", todayStr).get();
+
+  var todayCustomers = new Set(), todayItems = 0, todayRevenue = 0, todayProfit = 0;
+  salesSnap.forEach(function(d) {
+    var s = d.data();
+    todayCustomers.add(s.billId);
+    (s.items || []).forEach(function(i) { todayItems += i.qty; });
+    todayRevenue += s.grandTotal || 0;
+    todayProfit  += s.profit || 0;
+  });
+
+  // Fetch 30-day sales for graph
+  var histSnap = await db.collection(COL.sales)
+    .where("dateObj", ">=", thirtyDaysAgo).get();
+  var dayMap = {};
+  histSnap.forEach(function(d) {
+    var s = d.data();
+    if (!dayMap[s.date]) dayMap[s.date] = 0;
+    dayMap[s.date] += s.profit || 0;
+  });
+
+  // Build last 30 days labels
+  var labels = [], profitData = [];
+  for (var i = 29; i >= 0; i--) {
+    var d = new Date(); d.setDate(d.getDate() - i);
+    var ds = d.toISOString().split("T")[0];
+    labels.push(d.toLocaleDateString("en-IN", { day:"2-digit", month:"short" }));
+    profitData.push(+(dayMap[ds] || 0).toFixed(2));
+  }
+
+  // Top sellers
+  var prodsSnap = await db.collection(COL.products).orderBy("salesCount30","desc").limit(5).get();
+  var topSellers = prodsSnap.docs.map(function(d) { return { name: d.data().name, count: d.data().salesCount30 || 0 }; });
+
+  // Unresolved alerts count
+  var alertsSnap = await db.collection(COL.alerts).where("resolved","==",false).get();
+  var alertCount = alertsSnap.size;
+
+  // Low stock products
+  var lowSnap = await db.collection(COL.products).get();
+  var lowStockCount = 0, expiryCount = 0;
+  lowSnap.forEach(function(d) {
+    var p = d.data();
+    if ((p.quantity / (p.maxStock || 1)) * 100 <= 10) lowStockCount++;
+    var th = getExpiryThresholds(p.category);
+    if (p.expiryDate && daysUntil(p.expiryDate) <= th.urgent) expiryCount++;
+  });
+
+  // Category sales pie
+  var catMap = {};
+  histSnap.forEach(function(d) {
+    (d.data().items || []).forEach(function(i) {
+      if (!catMap[i.category]) catMap[i.category] = 0;
+      catMap[i.category] += i.qty * i.price;
+    });
+  });
+  var catLabels = Object.keys(catMap);
+  var catData   = catLabels.map(function(k) { return +catMap[k].toFixed(2); });
+  var catColors = ["#2E7D32","#66BB6A","#E65100","#1565C0","#F9A825","#7B1FA2","#00838F"];
+
+  content.innerHTML =
+    '<!-- KPI Row -->' +
+    '<div class="kpi-grid">' +
+      '<div class="kpi-card">' +
+        '<div class="kpi-label">Customers Today</div>' +
+        '<div class="kpi-value">' + todayCustomers.size + '</div>' +
+        '<div class="kpi-sub">Unique bills</div>' +
+      '</div>' +
+      '<div class="kpi-card accent">' +
+        '<div class="kpi-label">Items Sold Today</div>' +
+        '<div class="kpi-value">' + fmtNum(todayItems) + '</div>' +
+        '<div class="kpi-sub">Units</div>' +
+      '</div>' +
+      '<div class="kpi-card blue">' +
+        '<div class="kpi-label">Revenue Today</div>' +
+        '<div class="kpi-value" style="font-size:21px">' + fmtCurrency(todayRevenue) + '</div>' +
+        '<div class="kpi-sub">Gross incl. GST</div>' +
+      '</div>' +
+      '<div class="kpi-card" style="border-left-color:#388E3C">' +
+        '<div class="kpi-label">Profit Today</div>' +
+        '<div class="kpi-value" style="font-size:21px;color:#2E7D32">' + fmtCurrency(todayProfit) + '</div>' +
+        '<div class="kpi-sub">After cost</div>' +
+      '</div>' +
+      '<div class="kpi-card yellow">' +
+        '<div class="kpi-label">Active Alerts</div>' +
+        '<div class="kpi-value" style="color:#F9A825">' + alertCount + '</div>' +
+        '<div class="kpi-sub">' + lowStockCount + ' low stock · ' + expiryCount + ' expiry</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<!-- Charts row -->' +
+    '<div class="grid-2" style="margin-bottom:18px">' +
+      '<div class="card">' +
+        '<div class="card-title">30-Day Profit Trend</div>' +
+        '<div class="chart-wrap"><canvas id="profitChart"></canvas></div>' +
+      '</div>' +
+      '<div class="card" style="background:var(--card-bg);box-shadow:var(--shadow);padding:0;overflow:visible;position:relative">' +
+        '<div class="neuro-chart-container">' +
+          '<div class="neuro-card-title">Sales by Category</div>' +
+          '<div class="neuro-chart-wrapper">' +
+            '<div class="neuro-chart-canvas-wrap">' +
+              '<canvas id="catChart"></canvas>' +
+              '<div class="neuro-chart-center" id="chartCenter"></div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="neuro-legend" id="catLegend"></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    '<!-- Top sellers + Alerts -->' +
+    '<div class="grid-2">' +
+      '<div class="card">' +
+        '<div class="card-title">🏆 Top Selling Products</div>' +
+        '<div id="top-sellers">' +
+          (topSellers.length === 0
+            ? '<div class="empty-state"><div class="empty-icon">📦</div><p>No sales data yet.</p></div>'
+            : topSellers.map(function(p,i) {
+                var icons = ["🥇","🥈","🥉","4️⃣","5️⃣"];
+                return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--green-p2)">' +
+                  '<span style="font-size:18px;width:28px;text-align:center">' + icons[i] + '</span>' +
+                  '<span style="flex:1;font-weight:600">' + p.name + '</span>' +
+                  '<span class="badge badge-green">' + p.count + ' sold</span>' +
+                '</div>';
+              }).join("")) +
+        '</div>' +
+      '</div>' +
+      '<div class="card">' +
+        '<div class="card-title">🔔 Recent Alerts</div>' +
+        '<div id="recent-alerts">' +
+          (alertCount === 0
+            ? '<div class="empty-state"><div class="empty-icon">✅</div><p>No active alerts. All good!</p></div>'
+            : "Loading…") +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  // Profit chart
+  new Chart(document.getElementById("profitChart"), {
+    type: "bar",
+    data: { 
+      labels: labels, 
+      datasets: [{ 
+        label: "Profit (₹)", 
+        data: profitData, 
+        backgroundColor: function(context) {
+          var chart = context.chart;
+          var ctx = chart.ctx;
+          var gradient = ctx.createLinearGradient(0, 0, 0, chart.height);
+          var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+          if (isDark) {
+            gradient.addColorStop(0, '#4adea8');
+            gradient.addColorStop(1, '#3bc992');
+          } else {
+            gradient.addColorStop(0, '#3ab87d');
+            gradient.addColorStop(1, '#2a9d66');
+          }
+          return gradient;
+        },
+        borderRadius: 8,
+        borderSkipped: false,
+        hoverBackgroundColor: function(context) {
+          var chart = context.chart;
+          var ctx = chart.ctx;
+          var gradient = ctx.createLinearGradient(0, 0, 0, chart.height);
+          var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+          if (isDark) {
+            gradient.addColorStop(0, '#5ee8b8');
+            gradient.addColorStop(1, '#4adea8');
+          } else {
+            gradient.addColorStop(0, '#4dc98f');
+            gradient.addColorStop(1, '#3ab87d');
+          }
+          return gradient;
+        }
+      }] 
+    },
+    options: { 
+      responsive: true, 
+      maintainAspectRatio: false,
+      plugins: { 
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: function() {
+            var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            return isDark ? 'rgba(18, 21, 28, 0.98)' : 'rgba(45, 55, 72, 0.95)';
+          },
+          titleColor: '#fff',
+          bodyColor: '#e5e7eb',
+          padding: 12,
+          cornerRadius: 10,
+          displayColors: false,
+          callbacks: {
+            label: function(context) {
+              return 'Profit: ₹' + context.parsed.y.toFixed(2);
+            }
+          }
+        }
+      }, 
+      scales: { 
+        y: { 
+          beginAtZero: true,
+          grid: {
+            color: function() {
+              var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+              return isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(163, 177, 198, 0.15)';
+            },
+            drawBorder: false
+          },
+          ticks: { 
+            callback: function(v) { return "₹"+v; },
+            font: { size: 11, weight: '600' },
+            color: function() {
+              var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+              return isDark ? '#9ba5b5' : '#7a6f66';
+            },
+            padding: 8
+          } 
+        }, 
+        x: { 
+          grid: {
+            display: false
+          },
+          ticks: { 
+            maxRotation: 45, 
+            minRotation: 45,
+            font: { size: 9, weight: '500' },
+            autoSkip: true,
+            maxTicksLimit: 15,
+            color: function() {
+              var isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+              return isDark ? '#9ba5b5' : '#7a6f66';
+            },
+            padding: 4
+          } 
+        } 
+      },
+      layout: {
+        padding: {
+          left: 5,
+          right: 5,
+          top: 10,
+          bottom: 5
+        }
+      },
+      animation: {
+        duration: 1200,
+        easing: 'easeInOutQuart'
+      }
+    }
+  });
+
+  // Category pie - Clean neumorphic implementation
+  initializeDonutChart(catLabels, catData);
+
+  // Recent alerts
+  if (alertCount > 0) {
+    var recentAlerts = alertsSnap.docs.slice(0,5);
+    var iconMap = { lowstock:"⚠️", expiry30:"🟡", expiry15:"🔴", deadstock:"💤", bestseller:"⭐" };
+    document.getElementById("recent-alerts").innerHTML = recentAlerts.map(function(d) {
+      var a = d.data();
+      return '<div class="alert-item ' + a.type + '">' +
+        '<span class="alert-icon">' + (iconMap[a.type]||"🔔") + '</span>' +
+        '<span class="alert-msg">' + a.message + '</span>' +
+      '</div>';
+    }).join("");
+  }
+
+  // Run alert engine in background
+  runAlertEngine().catch(function() {});
+  } catch(e) {
+    console.error("Dashboard load error:", e);
+    content.innerHTML = '<div class="card" style="text-align:center;padding:40px">' +
+      '<div style="font-size:36px;margin-bottom:12px">⚠️</div>' +
+      '<div style="font-weight:700;margin-bottom:8px;color:var(--red)">Failed to load dashboard</div>' +
+      '<div style="font-size:13px;color:#888;margin-bottom:16px">' + (e.message || e) + '</div>' +
+      '<button class="btn btn-primary" onclick="loadDashboard()">🔄 Retry</button>' +
+    '</div>';
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  buildLayout("Dashboard");
+  loadDashboard();
+});
+</script>
+</body>
+</html>
