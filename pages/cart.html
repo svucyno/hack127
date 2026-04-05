@@ -24,17 +24,14 @@ function renderCartPage() {
   var el = document.getElementById("cart-items-list");
   var totEl = document.getElementById("cart-totals-section");
   var btnEl = document.getElementById("checkout-btn");
-  var preBtn = document.getElementById("preorder-btn");
 
   if (!summary.items.length) {
     el.innerHTML = '<div class="empty-state" style="padding:40px"><div class="empty-icon">🛒</div><p>Your cart is empty. <a href="landing.html" style="color:var(--mint);font-weight:600">Start shopping</a></p></div>';
     totEl.innerHTML = '';
     btnEl.disabled = true;
-    if (preBtn) preBtn.disabled = true;
     return;
   }
   btnEl.disabled = false;
-  if (preBtn) preBtn.disabled = false;
 
   el.innerHTML = summary.items.map(function(item) {
     var offerLine = item.offerApplied ? '<div style="font-size:10px;color:var(--accent);font-weight:600">🎯 ' + item.offerApplied.label + '</div>' : '';
@@ -83,9 +80,9 @@ async function doCheckout() {
     var user = auth.currentUser;
     if (!user) { showToast("Please log in first.", "error"); return; }
     var orderId = await CartManager.checkout(user.uid, user.displayName || user.email);
-    showToast("Order " + orderId + " placed!");
     renderCartPage();
-    setTimeout(function() { window.location.href = "orders.html"; }, 1500);
+    // Show pickup notification popup
+    showPickupPopup(orderId);
   } catch(e) {
     showToast("Checkout failed. Please try again.", "error");
   } finally {
@@ -93,23 +90,23 @@ async function doCheckout() {
   }
 }
 
-async function doPreOrder() {
-  var mins = prompt("Arriving in how many minutes?", "10");
-  if (!mins || isNaN(parseInt(mins))) return;
-  var btn = document.getElementById("preorder-btn");
-  btn.disabled = true; btn.textContent = "Placing pre-order…";
-  try {
-    var user = auth.currentUser;
-    if (!user) { showToast("Please log in first.", "error"); return; }
-    var orderId = await CartManager.preOrder(user.uid, user.displayName || user.email, parseInt(mins));
-    showToast("Pre-order " + orderId + " placed! Arriving in " + mins + " min.");
-    renderCartPage();
-    setTimeout(function() { window.location.href = "orders.html"; }, 1500);
-  } catch(e) {
-    showToast("Pre-order failed. Please try again.", "error");
-  } finally {
-    btn.disabled = false; btn.textContent = "⏰ Pre-Order (10 min)";
-  }
+function showPickupPopup(orderId) {
+  var overlay = document.createElement("div");
+  overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(4px);display:flex;align-items:center;justify-content:center;z-index:9999";
+  var popup = document.createElement("div");
+  popup.style.cssText = "background:var(--card-bg,#e8e3dc);border-radius:20px;padding:32px;max-width:400px;width:90%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.3);border:1px solid var(--border,#ccc)";
+  popup.innerHTML =
+    '<div style="font-size:48px;margin-bottom:16px">🎉</div>' +
+    '<div style="font-size:20px;font-weight:800;color:var(--text,#333);margin-bottom:8px">Order Placed!</div>' +
+    '<div style="font-size:14px;color:var(--text-2,#666);margin-bottom:16px">Order ID: <strong>' + orderId + '</strong></div>' +
+    '<div style="background:linear-gradient(135deg,#3ab87d22,#00a3b822);border:1px solid #3ab87d44;border-radius:14px;padding:16px;margin-bottom:20px">' +
+      '<div style="font-size:28px;margin-bottom:8px">🏪</div>' +
+      '<div style="font-size:15px;font-weight:700;color:var(--mint-dark,#2a9d66)">Please collect your items from the store</div>' +
+      '<div style="font-size:24px;font-weight:900;color:var(--mint,#3ab87d);margin-top:8px">within 10 minutes</div>' +
+    '</div>' +
+    '<button style="padding:12px 32px;border-radius:12px;font-size:14px;font-weight:600;border:none;cursor:pointer;background:linear-gradient(135deg,#3ab87d,#2a9d66);color:#fff;box-shadow:4px 4px 8px rgba(0,0,0,0.2)" onclick="this.closest(\'div[style*=fixed]\').remove();window.location.href=\'orders.html\'">View My Orders</button>';
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
 }
 
 document.addEventListener("DOMContentLoaded", function() {
@@ -125,7 +122,6 @@ document.addEventListener("DOMContentLoaded", function() {
     '</div>' +
     '<div style="display:flex;gap:12px;flex-wrap:wrap">' +
       '<button class="btn btn-primary" id="checkout-btn" onclick="doCheckout()" disabled style="flex:1;justify-content:center;padding:14px;font-size:15px">✅ Place Order</button>' +
-      '<button class="btn btn-outline" id="preorder-btn" onclick="doPreOrder()" disabled style="justify-content:center;padding:14px;font-size:13px">⏰ Pre-Order (10 min)</button>' +
     '</div>';
   renderCartPage();
 });
