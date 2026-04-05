@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Inventory — ShopSmart</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase.js?v=5"></script>
+  <script src="../js/utils.js?v=5"></script>
+  <script src="../js/layout.js?v=5"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+var CATEGORIES = ["Groceries","Dairy","Beverages","Personal Care","Stationery","Electronics","Snacks","Medicines","Cleaning","Other"];
+var allProducts = [], editingId = null, searchQ = "", filterCat = "", filterStatus = "";
+
+function stockStatus(p) {
+  var pct = (p.quantity / (p.maxStock || 1)) * 100;
+  if (pct <= 10) return "lowstock";
+  if (p.expiryDate) {
+    var thresholds = getExpiryThresholds(p.category);
+    if (daysUntil(p.expiryDate) <= thresholds.urgent) return "expiring";
+  }
+  return "ok";
+}
+
+function renderTable() {
+  var list = allProducts;
+  if (searchQ) list = list.filter(function(p) { return p.name.toLowerCase().includes(searchQ) || (p.company||"").toLowerCase().includes(searchQ); });
+  if (filterCat) list = list.filter(function(p) { return p.category === filterCat; });
+  if (filterStatus === "lowstock") list = list.filter(function(p) { return stockStatus(p) === "lowstock"; });
+  if (filterStatus === "expiring") list = list.filter(function(p) { return stockStatus(p) === "expiring"; });
+
+  var tbody = document.getElementById("inv-tbody");
+  if (!list.length) {
+    tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:#888">No products found.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = list.map(function(p) {
+    var st = stockStatus(p);
+    var pct = ((p.quantity/(p.maxStock||1))*100).toFixed(0);
+    var stBadge = st==="lowstock" ? '<span class="badge badge-red">Low Stock ' + pct + '%</span>'
+                : st==="expiring" ? '<span class="badge badge-yellow">Expiring Soon</span>'
+                : '<span class="badge badge-green">OK</span>';
+    var exp = p.expiryDate ? daysUntil(p.expiryDate) : null;
+    var expBadge;
+    if (exp !== null) {
+      var th = getExpiryThresholds(p.category);
+      if (exp <= 0) expBadge = '<span class="badge badge-red">Expired</span>';
+      else if (exp <= th.urgent) expBadge = '<span class="badge badge-red">' + exp + 'd left</span>';
+      else if (exp <= th.warning) expBadge = '<span class="badge badge-yellow">' + exp + 'd left</span>';
+      else expBadge = '<span style="font-size:12px">' + fmtDate(p.expiryDate) + '</span>';
+    } else { expBadge = "—"; }
+    return '<tr>'
+      + '<td><strong>' + p.name + '</strong><br><span style="font-size:11px;color:#888">' + (p.company||p.brand||"") + '</span></td>'
+      + '<td>' + p.category + '</td>'
+      + '<td>' + (p.size||"—") + '</td>'
+      + '<td>' + fmtCurrency(p.costPrice) + '</td>'
+      + '<td>' + fmtCurrency(p.sellingPrice) + '</td>'
+      + '<td>' + fmtNum(p.quantity) + ' / ' + fmtNum(p.maxStock) + '</td>'
+      + '<td>' + stBadge + '</td>'
+      + '<td>' + expBadge + '</td>'
+      + '<td>'
+      +   '<button class="btn-icon" title="Edit" onclick="openEdit(\'' + p.id + '\')">✏️</button>'
+      +   '<button class="btn-icon" title="Delete" onclick="deleteProduct(\'' + p.id + '\',\'' + (p.name||"").replace(/'/g,"\\'") + '\')">🗑️</button>'
+      + '</td></tr>';
+  }).join("");
+}
+
+async function loadInventory() {
+  try {
+    var snap = await db.collection(COL.products).orderBy("name").get();
+    allProducts = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+    renderTable();
+  } catch(e) {
+    console.error("Inventory load error:", e);
+    var tbody = document.getElementById("inv-tbody");
+    if (tbody) tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--red)">Error: ' + e.message + '</td></tr>';
+  }
+}
+
+function openAdd() {
+  editingId = null;
+  document.getElementById("modal-title").textContent = "Add Product";
+  document.getElementById("prod-form").reset();
+  document.getElementById("prod-id").value = "";
+  document.getElementById("prod-modal").classList.add("open");
+}
+
+function openEdit(id) {
+  var p = allProducts.find(function(x) { return x.id === id; });
+  if (!p) return;
+  editingId = id;
+  document.getElementById("modal-title").textContent = "Edit Product";
+  document.getElementById("prod-id").value = id;
+  document.getElementById("prod-company").value = p.company || p.brand || "";
+  document.getElementById("prod-name").value = p.name;
+  document.getElementById("prod-cat").value = p.category;
+  document.getElementById("prod-size").value = p.size || "";
+  document.getElementById("prod-cost").value = p.costPrice;
+  document.getElementById("prod-sell").value = p.sellingPrice;
+  document.getElementById("prod-qty").value = p.quantity;
+  document.getElementById("prod-max").value = p.maxStock;
+  document.getElementById("prod-gst").value = p.gst || 0;
+  document.getElementById("prod-exp").value = p.expiryDate || "";
+  document.getElementById("prod-supplier").value = p.supplierId || "";
+  document.getElementById("prod-modal").classList.add("open");
+}
+
+function closeModal() {
+  document.getElementById("prod-modal").classList.remove("open");
+}
+</script>
+<script>
+async function saveProduct() {
+  var company = document.getElementById("prod-company").value.trim();
+  var name = document.getElementById("prod-name").value.trim();
+  var cat = document.getElementById("prod-cat").value;
+  var size = document.getElementById("prod-size").value.trim();
+  var cost = parseFloat(document.getElementById("prod-cost").value);
+  var sell = parseFloat(document.getElementById("prod-sell").value);
+  var qty = parseInt(document.getElementById("prod-qty").value);
+  var max = parseInt(document.getElementById("prod-max").value);
+  var gst = parseInt(document.getElementById("prod-gst").value);
+  var exp = document.getElementById("prod-exp").value;
+  var supId = document.getElementById("prod-supplier").value;
+
+  if (!name || !cat || isNaN(cost) || isNaN(sell) || isNaN(qty) || isNaN(max)) {
+    showToast("Please fill all required fields.", "error"); return;
+  }
+  if (sell < cost) {
+    if (!confirmAction("Selling price is less than cost price. Continue?")) return;
+  }
+
+  var data = {
+    company: company, name: name, brand: company, category: cat, size: size,
+    costPrice: cost, sellingPrice: sell, quantity: qty, maxStock: max,
+    gst: gst || 0, expiryDate: exp || null, supplierId: supId || null,
+    salesCount30: 0, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+
+  try {
+    if (editingId) {
+      await db.collection(COL.products).doc(editingId).update(data);
+      showToast("Product updated successfully!");
+    } else {
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      data.createdDaysAgo = 0;
+      await db.collection(COL.products).add(data);
+      showToast("Product added successfully!");
+    }
+    closeModal();
+    loadInventory();
+  } catch(e) {
+    showToast("Error saving product: " + e.message, "error");
+  }
+}
+
+async function deleteProduct(id, name) {
+  if (!confirmAction('Delete "' + name + '"? This cannot be undone.')) return;
+  try {
+    await db.collection(COL.products).doc(id).delete();
+    showToast('"' + name + '" deleted.');
+    loadInventory();
+  } catch(e) {
+    showToast("Error deleting product.", "error");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  buildLayout("Inventory");
+
+  document.getElementById("topbar-actions").innerHTML = '<button class="btn btn-primary" onclick="openAdd()">＋ Add Product</button>';
+
+  var catOpts = CATEGORIES.map(function(c) { return '<option>' + c + '</option>'; }).join("");
+  var gstOpts = [0,5,12,18,28].map(function(g) { return '<option value="' + g + '">' + g + '%</option>'; }).join("");
+
+  document.getElementById("page-content").innerHTML =
+    '<div class="card" style="margin-bottom:0">'
+    + '<div class="search-bar">'
+    +   '<div class="search-input-wrap">'
+    +     '<span class="search-icon">🔍</span>'
+    +     '<input type="text" id="search-inp" placeholder="Search by name or company…" oninput="searchQ=this.value.toLowerCase();renderTable()"/>'
+    +   '</div>'
+    +   '<select id="cat-filter" onchange="filterCat=this.value;renderTable()">'
+    +     '<option value="">All Categories</option>' + catOpts
+    +   '</select>'
+    +   '<select id="status-filter" onchange="filterStatus=this.value;renderTable()">'
+    +     '<option value="">All Status</option>'
+    +     '<option value="lowstock">Low Stock</option>'
+    +     '<option value="expiring">Expiring Soon</option>'
+    +   '</select>'
+    + '</div>'
+    + '<div class="table-wrap"><table>'
+    +   '<thead><tr>'
+    +     '<th>Product / Company</th><th>Category</th><th>Size</th>'
+    +     '<th>Cost</th><th>Sell Price</th><th>Qty / Max</th>'
+    +     '<th>Status</th><th>Expiry</th><th>Actions</th>'
+    +   '</tr></thead>'
+    +   '<tbody id="inv-tbody"><tr><td colspan="10" style="text-align:center;padding:32px;color:#888">Loading…</td></tr></tbody>'
+    + '</table></div>'
+    + '</div>'
+
+    // Modal
+    + '<div class="modal-overlay" id="prod-modal"><div class="modal">'
+    +   '<div class="modal-header">'
+    +     '<h3 id="modal-title">Add Product</h3>'
+    +     '<button class="modal-close" onclick="closeModal()">✕</button>'
+    +   '</div>'
+    +   '<form id="prod-form"><input type="hidden" id="prod-id"/>'
+    +   '<div class="form-grid">'
+    +     '<div class="form-group full"><label>Company / Brand Name *</label><input type="text" id="prod-company" placeholder="e.g. Amul, Britannia, Parle"/></div>'
+    +     '<div class="form-group full"><label>Product Name *</label><input type="text" id="prod-name" placeholder="e.g. Amul Gold Milk 500ml"/></div>'
+    +     '<div class="form-group"><label>Category *</label><select id="prod-cat"><option value="">Select…</option>' + catOpts + '</select></div>'
+    +     '<div class="form-group"><label>Size / Weight</label><input type="text" id="prod-size" placeholder="e.g. 500g, 1L, 250ml"/></div>'
+    +     '<div class="form-group"><label>Cost Price (₹) *</label><input type="number" id="prod-cost" min="0" step="0.01" placeholder="0.00"/></div>'
+    +     '<div class="form-group"><label>Selling Price (₹) *</label><input type="number" id="prod-sell" min="0" step="0.01" placeholder="0.00"/></div>'
+    +     '<div class="form-group"><label>Current Quantity *</label><input type="number" id="prod-qty" min="0" placeholder="0"/></div>'
+    +     '<div class="form-group"><label>Max Stock *</label><input type="number" id="prod-max" min="1" placeholder="100"/></div>'
+    +     '<div class="form-group"><label>GST Slab (%)</label><select id="prod-gst">' + gstOpts + '</select></div>'
+    +     '<div class="form-group"><label>Expiry Date</label><input type="date" id="prod-exp"/></div>'
+    +     '<div class="form-group full"><label>Supplier ID (optional)</label><input type="text" id="prod-supplier" placeholder="Link to a supplier"/></div>'
+    +   '</div></form>'
+    +   '<div class="modal-footer">'
+    +     '<button class="btn btn-outline" onclick="closeModal()">Cancel</button>'
+    +     '<button class="btn btn-primary" onclick="saveProduct()">💾 Save Product</button>'
+    +   '</div>'
+    + '</div></div>';
+
+  loadInventory();
+});
+</script>
+</body>
+</html>
