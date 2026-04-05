@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Alerts — ShopSmart</title>
+  <link rel="stylesheet" href="../css/style.css"/>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="../js/firebase.js?v=5"></script>
+  <script src="../js/utils.js?v=5"></script>
+  <script src="../js/layout.js?v=5"></script>
+</head>
+<body>
+<div id="app"></div>
+<script>
+var ICONS = { lowstock:"⚠️", expiry30:"🟡", expiry15:"🔴", deadstock:"💤", bestseller:"⭐️", gst:"🧾" };
+var LABELS = { lowstock:"Low Stock", expiry30:"Expiry (30 days)", expiry15:"Expiry (15 days)", deadstock:"Dead Stock", bestseller:"Best Seller", gst:"GST Anomaly" };
+var allAlerts = [], filterType = "all", filterResolved = "unresolved";
+
+function renderAlerts() {
+  var list = allAlerts;
+  if (filterType !== "all") list = list.filter(function(a) { return a.type === filterType; });
+  if (filterResolved === "unresolved") list = list.filter(function(a) { return !a.resolved; });
+  if (filterResolved === "resolved")   list = list.filter(function(a) { return a.resolved; });
+
+  var el = document.getElementById("alerts-list");
+  if (!list.length) {
+    el.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><p>' +
+      (filterResolved==="unresolved" ? "No active alerts. Everything looks good!" : "No resolved alerts yet.") +
+      '</p></div>';
+    return;
+  }
+  el.innerHTML = list.map(function(a) {
+    var dateStr = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().toLocaleDateString("en-IN") : "—";
+    var resolveBtn = !a.resolved
+      ? '<button class="btn btn-sm btn-outline" onclick="resolveAlert(\'' + a.id + '\')">✓ Resolve</button>'
+      : '<span class="badge badge-green">Resolved</span>';
+    var resolvedNote = a.resolved ? '<div style="font-size:11px;color:#aaa;margin-top:4px">Resolved</div>' : '';
+    return '<div class="alert-item ' + a.type + '" id="alert-' + a.id + '">' +
+      '<span class="alert-icon">' + (ICONS[a.type]||"🔔") + '</span>' +
+      '<div class="alert-msg">' +
+        '<div style="font-weight:600;font-size:12px;color:#777;margin-bottom:2px">' + (LABELS[a.type]||a.type) + '</div>' +
+        a.message +
+        resolvedNote +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">' +
+        '<span class="alert-time">' + dateStr + '</span>' +
+        resolveBtn +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+async function loadAlerts() {
+  try {
+    var snap = await db.collection(COL.alerts).orderBy("createdAt","desc").limit(100).get();
+    allAlerts = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+    updateCounts();
+    renderAlerts();
+  } catch(e) {
+    console.error("Alerts load error:", e);
+    var el = document.getElementById("alerts-list");
+    if (el) el.innerHTML = '<div style="text-align:center;padding:32px;color:var(--red)">Error: ' + e.message + '<br><button class="btn btn-sm btn-outline" style="margin-top:8px" onclick="loadAlerts()">🔄 Retry</button></div>';
+  }
+}
+
+function updateCounts() {
+  var unresolvedCount = allAlerts.filter(function(a) { return !a.resolved; }).length;
+  document.getElementById("badge-count").textContent = unresolvedCount;
+}
+
+async function resolveAlert(id) {
+  await db.collection(COL.alerts).doc(id).update({ resolved: true });
+  var a = allAlerts.find(function(x) { return x.id === id; });
+  if (a) a.resolved = true;
+  updateCounts();
+  renderAlerts();
+  showToast("Alert resolved.");
+}
+
+async function resolveAll() {
+  if (!confirmAction("Mark all unresolved alerts as resolved?")) return;
+  var unresolved = allAlerts.filter(function(a) { return !a.resolved; });
+  var batch = db.batch();
+  unresolved.forEach(function(a) { batch.update(db.collection(COL.alerts).doc(a.id), { resolved: true }); });
+  await batch.commit();
+  allAlerts.forEach(function(a) { a.resolved = true; });
+  updateCounts();
+  renderAlerts();
+  showToast(unresolved.length + " alerts resolved.");
+}
+
+async function runCheck() {
+  showToast("Running stock & expiry check…", "info");
+  await runAlertEngine();
+  await loadAlerts();
+  showToast("Check complete!");
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+  buildLayout("Alerts & Notifications");
+
+  var actions = document.getElementById("topbar-actions");
+  actions.innerHTML =
+    '<button class="btn btn-outline btn-sm" onclick="runCheck()">🔄 Run Check</button>' +
+    '<button class="btn btn-sm" style="background:#E8F5E9;color:var(--green)" onclick="resolveAll()">✓ Resolve All</button>';
+
+  document.getElementById("page-content").innerHTML =
+    '<div class="kpi-grid" style="margin-bottom:18px">' +
+      '<div class="kpi-card red"><div class="kpi-label">Expiry (15 days)</div><div class="kpi-value" id="cnt-exp15">—</div></div>' +
+      '<div class="kpi-card yellow"><div class="kpi-label">Expiry (30 days)</div><div class="kpi-value" id="cnt-exp30">—</div></div>' +
+      '<div class="kpi-card accent"><div class="kpi-label">Low Stock</div><div class="kpi-value" id="cnt-low">—</div></div>' +
+      '<div class="kpi-card" style="border-left-color:#607D8B"><div class="kpi-label">Dead Stock</div><div class="kpi-value" id="cnt-dead">—</div></div>' +
+      '<div class="kpi-card blue"><div class="kpi-label">Unresolved Total</div><div class="kpi-value" id="badge-count">—</div></div>' +
+    '</div>' +
+    '<div class="card">' +
+      '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">' +
+        '<select onchange="filterType=this.value;renderAlerts()" style="min-width:160px">' +
+          '<option value="all">All Types</option>' +
+          '<option value="lowstock">Low Stock</option>' +
+          '<option value="expiry15">Expiry (15 days)</option>' +
+          '<option value="expiry30">Expiry (30 days)</option>' +
+          '<option value="deadstock">Dead Stock</option>' +
+          '<option value="bestseller">Best Seller</option>' +
+        '</select>' +
+        '<select onchange="filterResolved=this.value;renderAlerts()" style="min-width:140px">' +
+          '<option value="unresolved">Unresolved</option>' +
+          '<option value="resolved">Resolved</option>' +
+          '<option value="all">All</option>' +
+        '</select>' +
+      '</div>' +
+      '<div id="alerts-list"><div style="text-align:center;padding:32px;color:#888">Loading…</div></div>' +
+    '</div>';
+
+  loadAlerts().then(function() {
+    document.getElementById("cnt-exp15").textContent = allAlerts.filter(function(a) { return a.type==="expiry15" && !a.resolved; }).length;
+    document.getElementById("cnt-exp30").textContent = allAlerts.filter(function(a) { return a.type==="expiry30" && !a.resolved; }).length;
+    document.getElementById("cnt-low").textContent   = allAlerts.filter(function(a) { return a.type==="lowstock" && !a.resolved; }).length;
+    document.getElementById("cnt-dead").textContent  = allAlerts.filter(function(a) { return a.type==="deadstock" && !a.resolved; }).length;
+  });
+});
+</script>
+</body>
+</html>
