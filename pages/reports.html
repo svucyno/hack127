@@ -11,7 +11,9 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="../js/firebase.js?v=5"></script>
   <script src="../js/utils.js?v=5"></script>
+  <script src="../js/i18n.js?v=1"></script>
   <script src="../js/layout.js?v=5"></script>
+  <script src="../js/offline.js?v=1"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -76,11 +78,11 @@ async function loadReport(period) {
   document.getElementById("report-body").innerHTML =
     '<!-- Summary cards -->' +
     '<div class="kpi-grid" style="margin-bottom:18px">' +
-      '<div class="kpi-card"><div class="kpi-label">Total Bills</div><div class="kpi-value">' + billCount + '</div></div>' +
-      '<div class="kpi-card accent"><div class="kpi-label">Items Sold</div><div class="kpi-value">' + fmtNum(itemCount) + '</div></div>' +
-      '<div class="kpi-card blue"><div class="kpi-label">Revenue</div><div class="kpi-value" style="font-size:20px">' + fmtCurrency(totalRevenue) + '</div></div>' +
-      '<div class="kpi-card"><div class="kpi-label">Profit</div><div class="kpi-value" style="font-size:20px;color:var(--green)">' + fmtCurrency(totalProfit) + '</div></div>' +
-      '<div class="kpi-card yellow"><div class="kpi-label">GST Collected</div><div class="kpi-value" style="font-size:20px">' + fmtCurrency(totalGST) + '</div></div>' +
+      '<div class="kpi-card"><div class="kpi-label">' + t("report.total_bills") + '</div><div class="kpi-value">' + billCount + '</div></div>' +
+      '<div class="kpi-card accent"><div class="kpi-label">' + t("report.items_sold") + '</div><div class="kpi-value">' + fmtNum(itemCount) + '</div></div>' +
+      '<div class="kpi-card blue"><div class="kpi-label">' + t("dash.revenue") + '</div><div class="kpi-value" style="font-size:20px">' + fmtCurrency(totalRevenue) + '</div></div>' +
+      '<div class="kpi-card"><div class="kpi-label">' + t("dash.profit") + '</div><div class="kpi-value" style="font-size:20px;color:var(--green)">' + fmtCurrency(totalProfit) + '</div></div>' +
+      '<div class="kpi-card yellow"><div class="kpi-label">' + t("report.gst") + '</div><div class="kpi-value" style="font-size:20px">' + fmtCurrency(totalGST) + '</div></div>' +
     '</div>' +
 
     '<!-- Charts -->' +
@@ -169,7 +171,7 @@ function printReport() {
 }
 
 document.addEventListener("DOMContentLoaded", function() {
-  buildLayout("Reports & Export");
+  buildLayout(t("report.title"));
 
   document.getElementById("topbar-actions").innerHTML =
     '<button class="btn btn-outline btn-sm" onclick="exportCSV()">⬇ CSV</button>' +
@@ -177,9 +179,9 @@ document.addEventListener("DOMContentLoaded", function() {
 
   document.getElementById("page-content").innerHTML =
     '<div style="display:flex;gap:10px;margin-bottom:18px">' +
-      '<button class="btn btn-outline" id="btn-daily" onclick="setReport(\'daily\')">Today</button>' +
-      '<button class="btn btn-outline" id="btn-weekly" onclick="setReport(\'weekly\')">Last 7 Days</button>' +
-      '<button class="btn btn-primary" id="btn-monthly" onclick="setReport(\'monthly\')">Last 30 Days</button>' +
+      '<button class="btn btn-outline" id="btn-daily" onclick="setReport(\'daily\')">' + t("report.daily") + '</button>' +
+      '<button class="btn btn-outline" id="btn-weekly" onclick="setReport(\'weekly\')">' + t("report.weekly") + '</button>' +
+      '<button class="btn btn-primary" id="btn-monthly" onclick="setReport(\'monthly\')">' + t("report.monthly") + '</button>' +
     '</div>' +
     '<div id="report-body"></div>';
 

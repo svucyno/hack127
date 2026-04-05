@@ -1089,6 +1089,11 @@ textarea { resize: vertical; min-height: 80px; }
 .coupon-discount {
   font-size: 20px; font-weight: 800;
   background: linear-gradient(135deg, var(--accent-l), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
 /* ── Barcode Scanner Modal ──────────────────────────────────────────────── */
 .scanner-modal-overlay {
   position: fixed; inset: 0;
@@ -1484,6 +1489,7 @@ textarea { resize: vertical; min-height: 80px; }
 }
 .coupon-grid {
   display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;
+}
 .bulk-scan-footer {
   padding: 14px 20px;
   border-top: 1px solid var(--border);
@@ -1510,3 +1516,96 @@ textarea { resize: vertical; min-height: 80px; }
   .coupon-grid { grid-template-columns: 1fr; }
 }
 
+/* ── Category Navigation Grid ───────────────────────────────────────────── */
+.cat-nav {
+  display: flex; gap: 10px; padding: 4px 0;
+  overflow-x: auto; scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+.cat-nav::-webkit-scrollbar { height: 4px; }
+.cat-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+.cat-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 14px; min-width: 80px;
+  border-radius: 14px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  transition: none;
+  flex-shrink: 0;
+  position: relative;
+}
+.cat-chip:active {
+  box-shadow: var(--shadow-pressed);
+  transform: translateY(1px);
+}
+.cat-chip.active {
+  box-shadow: var(--shadow-inset);
+  border-color: var(--cyan);
+  background: var(--card-bg);
+}
+.cat-chip.active .cat-chip-icon {
+  color: var(--cyan);
+  transform: scale(1.1);
+}
+.cat-chip.active .cat-chip-label {
+  color: var(--cyan);
+  font-weight: 700;
+}
+.cat-chip.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px; left: 25%; right: 25%;
+  height: 3px; border-radius: 3px 3px 0 0;
+  background: linear-gradient(90deg, var(--mint), var(--cyan));
+}
+.cat-chip-icon {
+  font-size: 22px; line-height: 1;
+  transition: transform 0.15s;
+}
+.cat-chip-label {
+  font-size: 10px; font-weight: 600;
+  color: var(--text-2);
+  text-align: center;
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+}
+.cat-chip-count {
+  position: absolute; top: 4px; right: 6px;
+  font-size: 9px; font-weight: 700;
+  color: var(--text-3);
+  background: var(--card-bg);
+  border-radius: 8px;
+  padding: 1px 5px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border);
+}
+
+/* ── Offline Banner ─────────────────────────────────────────────────────── */
+.offline-banner {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+  background: linear-gradient(135deg, #f0ad4e, #e8634f);
+  color: #fff; text-align: center; padding: 10px 16px;
+  font-size: 13px; font-weight: 600;
+  transform: translateY(-100%); transition: transform 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.offline-banner.show { transform: translateY(0); }
+
+/* ── Language Switcher ──────────────────────────────────────────────────── */
+#lang-switcher {
+  appearance: none; -webkit-appearance: none;
+  padding: 6px 28px 6px 10px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+/* ── Expiry Suggestion Cards ────────────────────────────────────────────── */
+.expiry-suggestion-card {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; border-radius: 10px; margin-bottom: 8px;
+  background: var(--card-bg); box-shadow: var(--shadow);
+  border: 1px solid var(--border); gap: 12px; flex-wrap: wrap;
+}

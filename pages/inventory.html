@@ -8,17 +8,19 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
   <script src="../js/firebase.js?v=6"></script>
   <script src="../js/utils.js?v=6"></script>
+  <script src="../js/i18n.js?v=1"></script>
   <script src="../js/layout.js?v=6"></script>
-  <script src="../js/barcode-scanner.js?v=6"></script>
+  <script src="../js/barcode-scanner.js?v=1"></script>
+  <script src="../js/offline.js?v=1"></script>
 </head>
 <body>
 <div id="app"></div>
 <script>
 var CATEGORIES = ["Groceries","Dairy","Beverages","Personal Care","Stationery","Electronics","Snacks","Medicines","Cleaning","Other"];
-var allProducts = [], editingId = null, searchQ = "", filterCat = "", filterStatus = "";
+var allProducts = [], allSuppliers = [], editingId = null, searchQ = "", filterCat = "", filterStatus = "";
 
 function stockStatus(p) {
   var pct = (p.quantity / (p.maxStock || 1)) * 100;
@@ -30,9 +32,20 @@ function stockStatus(p) {
   return "ok";
 }
 
+function renderCatNav() {
+  var el = document.getElementById("inv-cat-nav");
+  if (el) el.innerHTML = buildCatNav(CATEGORIES, allProducts, filterCat, "selectInvCat");
+}
+
+function selectInvCat(cat) {
+  filterCat = cat;
+  renderCatNav();
+  renderTable();
+}
+
 function renderTable() {
   var list = allProducts;
-  if (searchQ) list = list.filter(function(p) { return p.name.toLowerCase().includes(searchQ) || (p.company||"").toLowerCase().includes(searchQ) || (p.barcode||"").toLowerCase().includes(searchQ); });
+  if (searchQ) list = list.filter(function(p) { return p.name.toLowerCase().includes(searchQ) || (p.company||"").toLowerCase().includes(searchQ); });
   if (filterCat) list = list.filter(function(p) { return p.category === filterCat; });
   if (filterStatus === "lowstock") list = list.filter(function(p) { return stockStatus(p) === "lowstock"; });
   if (filterStatus === "expiring") list = list.filter(function(p) { return stockStatus(p) === "expiring"; });
@@ -57,6 +70,8 @@ function renderTable() {
       else if (exp <= th.warning) expBadge = '<span class="badge badge-yellow">' + exp + 'd left</span>';
       else expBadge = '<span style="font-size:12px">' + fmtDate(p.expiryDate) + '</span>';
     } else { expBadge = "—"; }
+    var sup = p.supplierId ? allSuppliers.find(function(s){return s.id===p.supplierId;}) : null;
+    var supName = sup ? '<span style="font-size:12px">🏪 ' + sup.name + '</span>' : '<span style="font-size:12px;color:#bbb">—</span>';
     return '<tr>'
       + '<td><strong>' + p.name + '</strong><br><span style="font-size:11px;color:#888">' + (p.company||p.brand||"") + '</span></td>'
       + '<td>' + p.category + '</td>'
@@ -66,6 +81,7 @@ function renderTable() {
       + '<td>' + fmtNum(p.quantity) + ' / ' + fmtNum(p.maxStock) + '</td>'
       + '<td>' + stBadge + '</td>'
       + '<td>' + expBadge + '</td>'
+      + '<td>' + supName + '</td>'
       + '<td>'
       +   '<button class="btn-icon" title="Edit" onclick="openEdit(\'' + p.id + '\')">✏️</button>'
       +   '<button class="btn-icon" title="Delete" onclick="deleteProduct(\'' + p.id + '\',\'' + (p.name||"").replace(/'/g,"\\'") + '\')">🗑️</button>'
@@ -75,9 +91,15 @@ function renderTable() {
 
 async function loadInventory() {
   try {
-    var snap = await db.collection(COL.products).orderBy("name").get();
-    allProducts = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+    var results = await Promise.all([
+      db.collection(COL.products).orderBy("name").get(),
+      db.collection(COL.suppliers).orderBy("name").get()
+    ]);
+    allProducts = results[0].docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+    allSuppliers = results[1].docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+    renderCatNav();
     renderTable();
+    populateSupplierDropdown();
   } catch(e) {
     console.error("Inventory load error:", e);
     var tbody = document.getElementById("inv-tbody");
@@ -85,14 +107,20 @@ async function loadInventory() {
   }
 }
 
-function openAdd(prefilledBarcode) {
+function populateSupplierDropdown() {
+  var sel = document.getElementById("prod-supplier");
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— No Supplier —</option>' +
+    allSuppliers.map(function(s) {
+      return '<option value="' + s.id + '">🏪 ' + s.name + (s.phone ? ' (' + s.phone + ')' : '') + '</option>';
+    }).join("");
+}
+
+function openAdd() {
   editingId = null;
   document.getElementById("modal-title").textContent = "Add Product";
   document.getElementById("prod-form").reset();
   document.getElementById("prod-id").value = "";
-  if (prefilledBarcode) {
-    document.getElementById("prod-barcode").value = prefilledBarcode;
-  }
   document.getElementById("prod-modal").classList.add("open");
 }
 
@@ -113,176 +141,12 @@ function openEdit(id) {
   document.getElementById("prod-gst").value = p.gst || 0;
   document.getElementById("prod-exp").value = p.expiryDate || "";
   document.getElementById("prod-supplier").value = p.supplierId || "";
-  document.getElementById("prod-barcode").value = p.barcode || "";
+  if (document.getElementById("prod-barcode")) document.getElementById("prod-barcode").value = p.barcode || "";
   document.getElementById("prod-modal").classList.add("open");
 }
 
 function closeModal() {
   document.getElementById("prod-modal").classList.remove("open");
-}
-
-// ── Barcode field scanner (inside form) ────────────────────────────────
-function scanForBarcodeField() {
-  BarcodeScanner.open({
-    mode: "single",
-    title: "Scan Barcode for Product",
-    onScan: function(code) {
-      document.getElementById("prod-barcode").value = code;
-      showToast("Barcode scanned: " + code);
-    }
-  });
-}
-
-// ── Toolbar: Scan Barcode (lookup) ─────────────────────────────────────
-function scanBarcodeLookup() {
-  BarcodeScanner.open({
-    mode: "single",
-    title: "Scan to Find / Add Product",
-    onScan: function(code) {
-      lookupBarcode(code);
-    }
-  });
-}
-
-async function lookupBarcode(code) {
-  try {
-    var snap = await db.collection(COL.products).where("barcode", "==", code).get();
-    if (!snap.empty) {
-      var doc = snap.docs[0];
-      var productId = doc.id;
-      // Reload products so we have latest data
-      await loadInventory();
-      openEdit(productId);
-      showToast("Product found — editing «" + doc.data().name + "»");
-    } else {
-      openAdd(code);
-      showToast("No product found — add new with barcode " + code, "info");
-    }
-  } catch(e) {
-    showToast("Barcode lookup error: " + e.message, "error");
-  }
-}
-
-// ── Bulk Scan Mode ─────────────────────────────────────────────────────
-var bulkScanLog = [];
-var bulkUpdated = 0;
-var bulkQueued = 0;
-
-function openBulkScan() {
-  bulkScanLog = [];
-  bulkUpdated = 0;
-  bulkQueued = 0;
-
-  // Create bulk scan overlay if it doesn't exist
-  if (!document.getElementById("bulk-scan-overlay")) {
-    var overlay = document.createElement("div");
-    overlay.id = "bulk-scan-overlay";
-    overlay.className = "bulk-scan-modal-overlay";
-    overlay.innerHTML =
-      '<div class="bulk-scan-modal">'
-      + '<div class="bulk-scan-header">'
-      +   '<h3>📦 Bulk Scan Mode</h3>'
-      +   '<button class="modal-close" onclick="closeBulkScan()">✕</button>'
-      + '</div>'
-      + '<div class="bulk-scan-body">'
-      +   '<div class="bulk-scan-log" id="bulk-log"></div>'
-      +   '<div style="padding:20px;text-align:center;color:var(--text-3);font-size:13px" id="bulk-empty">Scan items to begin. Each scan updates stock or queues new items.</div>'
-      + '</div>'
-      + '<div class="bulk-scan-summary" id="bulk-summary" style="display:none">'
-      +   '<div class="bulk-summary-stat">Updated: <strong id="bulk-updated-count">0</strong></div>'
-      +   '<div class="bulk-summary-stat">New: <strong id="bulk-queued-count">0</strong></div>'
-      +   '<div class="bulk-summary-stat">Total scans: <strong id="bulk-total-count">0</strong></div>'
-      + '</div>'
-      + '<div class="bulk-scan-footer">'
-      +   '<div class="bulk-increment-group">'
-      +     '<label>Qty increment:</label>'
-      +     '<input type="number" id="bulk-increment-val" value="1" min="1" max="999"/>'
-      +   '</div>'
-      +   '<div style="display:flex;gap:8px">'
-      +     '<button class="btn-scan" onclick="startBulkScanner()">📷 Start Scanning</button>'
-      +     '<button class="btn btn-outline" onclick="closeBulkScan()">Done</button>'
-      +   '</div>'
-      + '</div>'
-      + '</div>';
-    document.body.appendChild(overlay);
-  }
-
-  document.getElementById("bulk-log").innerHTML = "";
-  document.getElementById("bulk-empty").style.display = "block";
-  document.getElementById("bulk-summary").style.display = "none";
-  document.getElementById("bulk-scan-overlay").classList.add("open");
-}
-
-function startBulkScanner() {
-  BarcodeScanner.open({
-    mode: "continuous",
-    title: "Bulk Scan — Keep Scanning",
-    onScan: function(code) {
-      handleBulkScan(code);
-    },
-    onClose: function() {
-      // Refresh inventory on close
-      loadInventory();
-    }
-  });
-}
-
-async function handleBulkScan(code) {
-  var incrementVal = parseInt(document.getElementById("bulk-increment-val").value) || 1;
-  try {
-    var snap = await db.collection(COL.products).where("barcode", "==", code).get();
-    if (!snap.empty) {
-      var doc = snap.docs[0];
-      var pData = doc.data();
-      // Update quantity
-      await db.collection(COL.products).doc(doc.id).update({
-        quantity: firebase.firestore.FieldValue.increment(incrementVal),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      var newQty = (pData.quantity || 0) + incrementVal;
-      bulkUpdated++;
-      addBulkLogItem("success", "✓", pData.name + " — qty updated to " + newQty);
-    } else {
-      bulkQueued++;
-      addBulkLogItem("new-product", "⚠", "New product — barcode " + code + " queued");
-      // Open Add modal with pre-filled barcode after a short delay
-      setTimeout(function() {
-        BarcodeScanner.close();
-        openAdd(code);
-      }, 500);
-    }
-  } catch(e) {
-    addBulkLogItem("error", "✗", "Error for " + code + ": " + e.message);
-  }
-}
-
-function addBulkLogItem(type, icon, message) {
-  var logEl = document.getElementById("bulk-log");
-  var emptyEl = document.getElementById("bulk-empty");
-  if (emptyEl) emptyEl.style.display = "none";
-
-  var item = document.createElement("div");
-  item.className = "bulk-log-item " + type;
-  item.innerHTML = '<span class="bulk-log-icon">' + icon + '</span><span class="bulk-log-msg">' + message + '</span>';
-  logEl.insertBefore(item, logEl.firstChild);
-
-  // Update summary
-  var summaryEl = document.getElementById("bulk-summary");
-  summaryEl.style.display = "flex";
-  document.getElementById("bulk-updated-count").textContent = bulkUpdated;
-  document.getElementById("bulk-queued-count").textContent = bulkQueued;
-  document.getElementById("bulk-total-count").textContent = bulkUpdated + bulkQueued;
-
-  // Scroll to top of log
-  logEl.scrollTop = 0;
-
-  bulkScanLog.push({ type: type, message: message });
-}
-
-function closeBulkScan() {
-  document.getElementById("bulk-scan-overlay").classList.remove("open");
-  BarcodeScanner.close();
-  loadInventory();
 }
 </script>
 <script>
@@ -298,7 +162,7 @@ async function saveProduct() {
   var gst = parseInt(document.getElementById("prod-gst").value);
   var exp = document.getElementById("prod-exp").value;
   var supId = document.getElementById("prod-supplier").value;
-  var barcode = document.getElementById("prod-barcode").value.trim();
+  var barcode = document.getElementById("prod-barcode") ? document.getElementById("prod-barcode").value.trim() : "";
 
   if (!name || !cat || isNaN(cost) || isNaN(sell) || isNaN(qty) || isNaN(max)) {
     showToast("Please fill all required fields.", "error"); return;
@@ -310,8 +174,7 @@ async function saveProduct() {
   var data = {
     company: company, name: name, brand: company, category: cat, size: size,
     costPrice: cost, sellingPrice: sell, quantity: qty, maxStock: max,
-    gst: gst || 0, expiryDate: exp || null, supplierId: supId || null,
-    barcode: barcode || null,
+    gst: gst || 0, expiryDate: exp || null, supplierId: supId || null, barcode: barcode || null,
     salesCount30: 0, updatedAt: firebase.firestore.FieldValue.serverTimestamp()
   };
 
@@ -344,37 +207,37 @@ async function deleteProduct(id, name) {
 }
 
 document.addEventListener("DOMContentLoaded", function() {
-  buildLayout("Inventory");
+  buildLayout(t("inv.title"));
 
   document.getElementById("topbar-actions").innerHTML =
-    '<button class="btn-scan" onclick="scanBarcodeLookup()">📷 Scan Barcode</button>'
-    + '<button class="btn-scan" onclick="openBulkScan()" style="background:linear-gradient(135deg, var(--accent-l), var(--accent))">📦 Bulk Scan</button>'
-    + '<button class="btn btn-primary" onclick="openAdd()">＋ Add Product</button>';
+    '<button class="btn btn-outline btn-sm" onclick="scanToFind()">📷 ' + t("inv.scan_find") + '</button>' +
+    '<button class="btn btn-outline btn-sm" onclick="bulkScan()">📦 ' + t("inv.bulk_scan") + '</button>' +
+    '<button class="btn btn-primary" onclick="openAdd()">＋ ' + t("inv.add_product") + '</button>';
 
   var catOpts = CATEGORIES.map(function(c) { return '<option>' + c + '</option>'; }).join("");
   var gstOpts = [0,5,12,18,28].map(function(g) { return '<option value="' + g + '">' + g + '%</option>'; }).join("");
 
   document.getElementById("page-content").innerHTML =
+    // Category navigation
+    '<div id="inv-cat-nav" class="card" style="margin-bottom:14px;padding:16px 18px"></div>' +
+
     '<div class="card" style="margin-bottom:0">'
     + '<div class="search-bar">'
     +   '<div class="search-input-wrap">'
     +     '<span class="search-icon">🔍</span>'
-    +     '<input type="text" id="search-inp" placeholder="Search by name, company, or barcode…" oninput="searchQ=this.value.toLowerCase();renderTable()"/>'
+    +     '<input type="text" id="search-inp" placeholder="' + t("action.search") + '…" oninput="searchQ=this.value.toLowerCase();renderTable()"/>'
     +   '</div>'
-    +   '<select id="cat-filter" onchange="filterCat=this.value;renderTable()">'
-    +     '<option value="">All Categories</option>' + catOpts
-    +   '</select>'
     +   '<select id="status-filter" onchange="filterStatus=this.value;renderTable()">'
-    +     '<option value="">All Status</option>'
-    +     '<option value="lowstock">Low Stock</option>'
-    +     '<option value="expiring">Expiring Soon</option>'
+    +     '<option value="">' + t("inv.all_status") + '</option>'
+    +     '<option value="lowstock">' + t("inv.low_stock") + '</option>'
+    +     '<option value="expiring">' + t("inv.expiring") + '</option>'
     +   '</select>'
     + '</div>'
     + '<div class="table-wrap"><table>'
     +   '<thead><tr>'
-    +     '<th>Product / Company</th><th>Category</th><th>Size</th>'
-    +     '<th>Cost</th><th>Sell Price</th><th>Qty / Max</th>'
-    +     '<th>Status</th><th>Expiry</th><th>Actions</th>'
+    +     '<th>' + t("inv.product") + '</th><th>' + t("inv.category") + '</th><th>Size</th>'
+    +     '<th>' + t("inv.cost") + '</th><th>' + t("inv.sell_price") + '</th><th>' + t("inv.quantity") + '</th>'
+    +     '<th>' + t("inv.status") + '</th><th>' + t("inv.expiry") + '</th><th>' + t("inv.supplier") + '</th><th>Actions</th>'
     +   '</tr></thead>'
     +   '<tbody id="inv-tbody"><tr><td colspan="10" style="text-align:center;padding:32px;color:#888">Loading…</td></tr></tbody>'
     + '</table></div>'
@@ -388,32 +251,100 @@ document.addEventListener("DOMContentLoaded", function() {
     +   '</div>'
     +   '<form id="prod-form"><input type="hidden" id="prod-id"/>'
     +   '<div class="form-grid">'
-    +     '<div class="form-group full"><label>Barcode</label>'
-    +       '<div class="barcode-input-group">'
-    +         '<input type="text" id="prod-barcode" placeholder="e.g. 8901234567890"/>'
-    +         '<button type="button" class="btn-scan-icon" onclick="scanForBarcodeField()" title="Scan barcode with camera">📷</button>'
-    +       '</div>'
-    +     '</div>'
-    +     '<div class="form-group full"><label>Company / Brand Name *</label><input type="text" id="prod-company" placeholder="e.g. Amul, Britannia, Parle"/></div>'
-    +     '<div class="form-group full"><label>Product Name *</label><input type="text" id="prod-name" placeholder="e.g. Amul Gold Milk 500ml"/></div>'
+    +     '<div class="form-group full"><label>' + t("inv.company") + ' *</label><input type="text" id="prod-company" placeholder="e.g. Amul, Britannia, Parle"/></div>'
+    +     '<div class="form-group full"><label>' + t("inv.product") + ' *</label><input type="text" id="prod-name" placeholder="e.g. Amul Gold Milk 500ml"/></div>'
     +     '<div class="form-group"><label>Category *</label><select id="prod-cat"><option value="">Select…</option>' + catOpts + '</select></div>'
     +     '<div class="form-group"><label>Size / Weight</label><input type="text" id="prod-size" placeholder="e.g. 500g, 1L, 250ml"/></div>'
-    +     '<div class="form-group"><label>Cost Price (₹) *</label><input type="number" id="prod-cost" min="0" step="0.01" placeholder="0.00"/></div>'
-    +     '<div class="form-group"><label>Selling Price (₹) *</label><input type="number" id="prod-sell" min="0" step="0.01" placeholder="0.00"/></div>'
-    +     '<div class="form-group"><label>Current Quantity *</label><input type="number" id="prod-qty" min="0" placeholder="0"/></div>'
-    +     '<div class="form-group"><label>Max Stock *</label><input type="number" id="prod-max" min="1" placeholder="100"/></div>'
+    +     '<div class="form-group"><label>' + t("inv.cost") + ' (₹) *</label><input type="number" id="prod-cost" min="0" step="0.01" placeholder="0.00"/></div>'
+    +     '<div class="form-group"><label>' + t("inv.sell_price") + ' (₹) *</label><input type="number" id="prod-sell" min="0" step="0.01" placeholder="0.00"/></div>'
+    +     '<div class="form-group"><label>' + t("inv.quantity") + ' *</label><input type="number" id="prod-qty" min="0" placeholder="0"/></div>'
+    +     '<div class="form-group"><label>' + t("inv.max_stock") + ' *</label><input type="number" id="prod-max" min="1" placeholder="100"/></div>'
     +     '<div class="form-group"><label>GST Slab (%)</label><select id="prod-gst">' + gstOpts + '</select></div>'
     +     '<div class="form-group"><label>Expiry Date</label><input type="date" id="prod-exp"/></div>'
-    +     '<div class="form-group full"><label>Supplier ID (optional)</label><input type="text" id="prod-supplier" placeholder="Link to a supplier"/></div>'
+    +     '<div class="form-group full"><label>' + t("inv.barcode") + '</label><div style="display:flex;gap:8px"><input type="text" id="prod-barcode" placeholder="' + t("inv.barcode") + '…" style="flex:1"/><button type="button" class="btn btn-sm btn-outline" onclick="scanBarcode()" style="white-space:nowrap">📷 Scan</button></div></div>'
+    +     '<div class="form-group full"><label>' + t("inv.supplier") + '</label><select id="prod-supplier"><option value="">—</option></select></div>'
     +   '</div></form>'
     +   '<div class="modal-footer">'
-    +     '<button class="btn btn-outline" onclick="closeModal()">Cancel</button>'
-    +     '<button class="btn btn-primary" onclick="saveProduct()">💾 Save Product</button>'
+    +     '<button class="btn btn-outline" onclick="closeModal()">' + t("action.cancel") + '</button>'
+    +     '<button class="btn btn-primary" onclick="saveProduct()">💾 ' + t("action.save") + '</button>'
     +   '</div>'
     + '</div></div>';
 
   loadInventory();
 });
+
+function scanBarcode() {
+  BarcodeScanner.open({
+    onScan: function(code) {
+      document.getElementById("prod-barcode").value = code;
+    }
+  });
+}
+
+function scanToFind() {
+  BarcodeScanner.open({
+    onScan: function(code) {
+      var found = allProducts.find(function(p) { return p.barcode === code; });
+      if (found) {
+        openEdit(found.id);
+        showToast("Found: " + found.name);
+      } else {
+        openAdd();
+        setTimeout(function() {
+          if (document.getElementById("prod-barcode")) document.getElementById("prod-barcode").value = code;
+        }, 100);
+        showToast("New product — barcode " + code + " pre-filled.", "info");
+      }
+    }
+  });
+}
+
+var bulkScanResults = [];
+function bulkScan() {
+  bulkScanResults = [];
+  BarcodeScanner.open({
+    continuous: true,
+    onScan: function(code) {
+      var found = allProducts.find(function(p) { return p.barcode === code; });
+      var existing = bulkScanResults.find(function(r) { return r.barcode === code; });
+      if (existing) {
+        existing.addQty++;
+        showToast(existing.name + " — qty +" + existing.addQty);
+      } else if (found) {
+        bulkScanResults.push({ id: found.id, barcode: code, name: found.name, addQty: 1, isNew: false });
+        showToast("✓ " + found.name + " found");
+      } else {
+        bulkScanResults.push({ barcode: code, name: "Unknown (" + code + ")", addQty: 1, isNew: true });
+        showToast("⚠ New barcode: " + code, "info");
+      }
+    },
+    onClose: function() {
+      if (!bulkScanResults.length) return;
+      if (confirmAction("Apply bulk scan? " + bulkScanResults.length + " item(s) scanned.")) {
+        applyBulkScan();
+      }
+    }
+  });
+}
+
+async function applyBulkScan() {
+  var batch = db.batch();
+  var updates = bulkScanResults.filter(function(r) { return !r.isNew; });
+  updates.forEach(function(r) {
+    batch.update(db.collection(COL.products).doc(r.id), {
+      quantity: firebase.firestore.FieldValue.increment(r.addQty)
+    });
+  });
+  if (updates.length) {
+    await batch.commit();
+    showToast(updates.length + " product(s) updated!");
+    loadInventory();
+  }
+  var newItems = bulkScanResults.filter(function(r) { return r.isNew; });
+  if (newItems.length) {
+    showToast(newItems.length + " unknown barcode(s) — add them manually.", "info");
+  }
+}
 </script>
 </body>
 </html>

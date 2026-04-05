@@ -8,14 +8,16 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="../js/firebase.js?v=5"></script>
-  <script src="../js/utils.js?v=5"></script>
-  <script src="../js/layout.js?v=5"></script>
+  <script src="../js/firebase.js?v=6"></script>
+  <script src="../js/utils.js?v=6"></script>
+  <script src="../js/i18n.js?v=1"></script>
+  <script src="../js/layout.js?v=6"></script>
+  <script src="../js/offline.js?v=1"></script>
 </head>
 <body>
 <div id="app"></div>
 <script>
-var suppliers=[], products=[], editingId=null;
+var suppliers=[], products=[], editingId=null, searchQ="", filterQ="";
 
 async function loadData() {
   try {
@@ -35,32 +37,66 @@ async function loadData() {
   }
 }
 
+function getLinkedProducts(supId) {
+  return products.filter(function(p) { return p.supplierId === supId; });
+}
+
 function renderSuppliers() {
+  var list = suppliers;
+  if (searchQ) {
+    list = list.filter(function(s) {
+      return s.name.toLowerCase().includes(searchQ) || (s.phone||"").includes(searchQ) || (s.email||"").toLowerCase().includes(searchQ);
+    });
+  }
+
   var el = document.getElementById("suppliers-grid");
-  if (!suppliers.length) {
-    el.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🏪</div><p>No suppliers yet. Add your first supplier!</p></div>';
+  if (!list.length) {
+    el.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🏪</div><p>' + (searchQ ? 'No suppliers match your search.' : 'No suppliers yet. Add your first supplier!') + '</p></div>';
     return;
   }
-  el.innerHTML = suppliers.map(function(s) {
-    var linked = products.filter(function(p) { return p.supplierId === s.id; });
+  el.innerHTML = list.map(function(s) {
+    var linked = getLinkedProducts(s.id);
+    var prodTags = linked.length
+      ? '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px">' + linked.map(function(p) {
+          var pct = ((p.quantity/(p.maxStock||1))*100);
+          var color = pct <= 10 ? '#e8634f' : pct <= 30 ? '#f0ad4e' : '#3ab87d';
+          return '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:' + color + '22;color:' + color + ';border:1px solid ' + color + '44">' + p.name + ' (' + p.quantity + ')' + '</span>';
+        }).join("") + '</div>'
+      : '<div style="font-size:12px;color:#999;margin-top:6px">No products linked</div>';
+
     var notesHtml = s.notes ? '<div style="margin-top:8px;font-size:12px;color:#555;background:var(--green-p2);padding:6px 8px;border-radius:6px">' + s.notes + '</div>' : '';
+
+    var whatsappDirect = s.phone
+      ? '<a href="https://wa.me/91' + s.phone.replace(/\D/g,'') + '" target="_blank" class="btn btn-sm" style="background:#25D366;color:#fff" title="Open WhatsApp chat">💬 Chat</a>'
+      : '';
+
+    var whatsappReorder = s.phone && linked.length
+      ? '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0" onclick="draftWhatsapp(\'' + s.id + '\')" title="Send reorder request via WhatsApp">📦 Reorder</button>'
+      : '';
+
     return '<div class="supplier-card">' +
-      '<div class="supplier-name">🏪 ' + s.name + '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start">' +
+        '<div class="supplier-name">🏪 ' + s.name + '</div>' +
+        '<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:#3ab87d22;color:#3ab87d">' + linked.length + ' product' + (linked.length!==1?"s":"") + '</span>' +
+      '</div>' +
       '<div class="supplier-info">' +
         '📞 ' + (s.phone||"—") + '<br>' +
-        '📧 ' + (s.email||"—") + '<br>' +
-        '🗂 ' + linked.length + ' product' + (linked.length!==1?"s":"") + ' linked' +
+        '📧 ' + (s.email||"—") +
       '</div>' +
+      prodTags +
       notesHtml +
       '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">' +
         '<button class="btn btn-sm btn-outline" onclick="openEdit(\'' + s.id + '\')">✏️ Edit</button>' +
-        '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0" onclick="draftWhatsapp(\'' + s.id + '\')">📱 WhatsApp</button>' +
+        whatsappDirect +
+        whatsappReorder +
+        '<button class="btn btn-sm" style="background:#f3e8ff;color:#7c3aed" onclick="openLinkProducts(\'' + s.id + '\')" title="Link/unlink products">🔗 Products</button>' +
         '<button class="btn btn-sm btn-danger" onclick="deleteSupplier(\'' + s.id + '\',\'' + s.name.replace(/'/g, "\\'") + '\')">🗑️</button>' +
       '</div>' +
     '</div>';
   }).join("");
 }
-
+</script>
+<script>
 function renderReorderDrafts() {
   var lowStock = products.filter(function(p) { return (p.quantity/(p.maxStock||1))*100 <= 10 && p.supplierId; });
   var el = document.getElementById("reorder-list");
@@ -68,25 +104,41 @@ function renderReorderDrafts() {
     el.innerHTML='<p style="color:#888;font-size:13px">No critical low-stock items with assigned suppliers.</p>';
     return;
   }
-  el.innerHTML = lowStock.map(function(p) {
-    var sup = suppliers.find(function(s) { return s.id === p.supplierId; });
-    var msg = 'Hi ' + (sup?sup.name:"Supplier") + ', this is a reorder request for *' + p.name + '*. Current stock: ' + p.quantity + ' units. Please send ' + (p.maxStock - p.quantity) + ' units at your earliest. Thank you!';
+
+  // Group by supplier
+  var grouped = {};
+  lowStock.forEach(function(p) {
+    if (!grouped[p.supplierId]) grouped[p.supplierId] = [];
+    grouped[p.supplierId].push(p);
+  });
+
+  var html = '';
+  Object.keys(grouped).forEach(function(supId) {
+    var sup = suppliers.find(function(s) { return s.id === supId; });
+    var items = grouped[supId];
+    var msg = 'Hi ' + (sup?sup.name:"Supplier") + ', this is a reorder request from ShopSmart:\n\n' +
+      items.map(function(p) { return '• *' + p.name + '* — Current: ' + p.quantity + ', Need: ' + (p.maxStock - p.quantity) + ' units'; }).join('\n') +
+      '\n\nPlease confirm availability and delivery timeline. Thank you!';
+
     var whatsappBtn = sup && sup.phone
-      ? '<a href="https://wa.me/91' + sup.phone.replace(/\D/g,'') + '?text=' + encodeURIComponent(msg) + '" target="_blank" class="btn btn-sm" style="background:#25D366;color:#fff">📱 WhatsApp</a>'
+      ? '<a href="https://wa.me/91' + sup.phone.replace(/\D/g,'') + '?text=' + encodeURIComponent(msg) + '" target="_blank" class="btn btn-sm" style="background:#25D366;color:#fff">📱 WhatsApp All</a>'
       : '';
-    return '<div style="background:var(--green-p2);border-radius:8px;padding:12px;margin-bottom:10px">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">' +
-        '<div>' +
-          '<div style="font-weight:700">' + p.name + '</div>' +
-          '<div style="font-size:12px;color:#555">Supplier: ' + (sup?sup.name:"Unknown") + ' · Stock: ' + p.quantity + '/' + p.maxStock + '</div>' +
-        '</div>' +
-        '<div style="display:flex;gap:8px">' +
-          '<button class="btn btn-sm btn-outline" onclick="copyMsg(\'' + msg.replace(/'/g, "\\'") + '\')">📋 Copy</button>' +
-          whatsappBtn +
-        '</div>' +
+
+    html += '<div style="background:var(--green-p2);border-radius:8px;padding:12px;margin-bottom:10px">' +
+      '<div style="font-weight:700;margin-bottom:6px">🏪 ' + (sup?sup.name:"Unknown Supplier") + ' <span style="font-size:12px;font-weight:400;color:#888">(' + items.length + ' item' + (items.length!==1?'s':'') + ')</span></div>' +
+      items.map(function(p) {
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:13px">' +
+          '<span>' + p.name + ' — <strong style="color:#e8634f">' + p.quantity + '</strong>/' + p.maxStock + '</span>' +
+          '<span style="color:#888">Need ' + (p.maxStock - p.quantity) + '</span>' +
+        '</div>';
+      }).join("") +
+      '<div style="display:flex;gap:8px;margin-top:8px">' +
+        '<button class="btn btn-sm btn-outline" onclick="copyMsg(`' + msg.replace(/`/g, '\\`').replace(/'/g, "\\'") + '`)">📋 Copy</button>' +
+        whatsappBtn +
       '</div>' +
     '</div>';
-  }).join("");
+  });
+  el.innerHTML = html;
 }
 
 function copyMsg(msg) {
@@ -95,9 +147,13 @@ function copyMsg(msg) {
 
 function draftWhatsapp(id) {
   var sup  = suppliers.find(function(s){return s.id===id;});
-  var prods = products.filter(function(p){return p.supplierId===id;});
+  var prods = getLinkedProducts(id);
   if (!prods.length) { showToast("No products linked to this supplier.","error"); return; }
-  var msg = 'Hi ' + sup.name + ', please check our reorder requirements:\n' + prods.map(function(p){return '- ' + p.name + ': need ' + (p.maxStock-p.quantity) + ' units';}).join('\n') + '\nThank you!';
+  var lowProds = prods.filter(function(p) { return (p.quantity/(p.maxStock||1))*100 <= 30; });
+  var listProds = lowProds.length ? lowProds : prods;
+  var msg = 'Hi ' + sup.name + ', this is a reorder request from ShopSmart:\n\n' +
+    listProds.map(function(p){return '• *' + p.name + '* — Current stock: ' + p.quantity + ', Need: ' + (p.maxStock-p.quantity) + ' units';}).join('\n') +
+    '\n\nPlease confirm availability and delivery timeline. Thank you!';
   if (sup.phone) {
     window.open('https://wa.me/91' + sup.phone.replace(/\D/g,'') + '?text=' + encodeURIComponent(msg), '_blank');
   } else {
@@ -105,17 +161,89 @@ function draftWhatsapp(id) {
   }
 }
 
-function openAdd() { editingId=null; document.getElementById("sup-form").reset(); document.getElementById("sup-modal").classList.add("open"); }
+function sendCustomWhatsapp(id) {
+  var sup = suppliers.find(function(s){return s.id===id;});
+  if (!sup || !sup.phone) { showToast("No phone number for this supplier.","error"); return; }
+  var msg = document.getElementById("wa-custom-msg-" + id);
+  if (msg && msg.value.trim()) {
+    window.open('https://wa.me/91' + sup.phone.replace(/\D/g,'') + '?text=' + encodeURIComponent(msg.value.trim()), '_blank');
+  } else {
+    window.open('https://wa.me/91' + sup.phone.replace(/\D/g,''), '_blank');
+  }
+}
+</script>
+<script>
+// ── Add/Edit Supplier Modal ──
+function openAdd() {
+  editingId=null;
+  document.getElementById("sup-form").reset();
+  document.getElementById("sup-modal-title").textContent = "Add Supplier";
+  populateProductCheckboxes([]);
+  document.getElementById("sup-modal").classList.add("open");
+}
+
 function openEdit(id) {
   var s=suppliers.find(function(x){return x.id===id;}); if(!s) return;
   editingId=id;
+  document.getElementById("sup-modal-title").textContent = "Edit Supplier";
   document.getElementById("sup-name").value  =s.name||"";
   document.getElementById("sup-phone").value =s.phone||"";
   document.getElementById("sup-email").value =s.email||"";
   document.getElementById("sup-notes").value =s.notes||"";
+  var linkedIds = getLinkedProducts(id).map(function(p){return p.id;});
+  populateProductCheckboxes(linkedIds);
   document.getElementById("sup-modal").classList.add("open");
 }
+
+function populateProductCheckboxes(selectedIds) {
+  var container = document.getElementById("sup-products-list");
+  var filterInput = document.getElementById("sup-prod-filter");
+  if (filterInput) filterInput.value = "";
+
+  if (!products.length) {
+    container.innerHTML = '<div style="color:#888;font-size:13px;padding:8px">No products in inventory yet.</div>';
+    return;
+  }
+
+  renderProductCheckboxes(selectedIds, "");
+}
+
+function renderProductCheckboxes(selectedIds, filter) {
+  var container = document.getElementById("sup-products-list");
+  var filtered = products;
+  if (filter) {
+    filtered = products.filter(function(p) {
+      return p.name.toLowerCase().includes(filter) || (p.company||"").toLowerCase().includes(filter) || (p.category||"").toLowerCase().includes(filter);
+    });
+  }
+
+  if (!filtered.length) {
+    container.innerHTML = '<div style="color:#888;font-size:13px;padding:8px">No products match filter.</div>';
+    return;
+  }
+
+  // Show selected first, then unselected
+  var selected = filtered.filter(function(p){return selectedIds.indexOf(p.id) !== -1;});
+  var unselected = filtered.filter(function(p){return selectedIds.indexOf(p.id) === -1;});
+  var sorted = selected.concat(unselected);
+
+  container.innerHTML = sorted.map(function(p) {
+    var checked = selectedIds.indexOf(p.id) !== -1 ? ' checked' : '';
+    var pct = ((p.quantity/(p.maxStock||1))*100);
+    var stockColor = pct <= 10 ? '#e8634f' : pct <= 30 ? '#f0ad4e' : '#3ab87d';
+    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;transition:background 0.15s" onmouseover="this.style.background=\'var(--green-p2)\'" onmouseout="this.style.background=\'transparent\'">' +
+      '<input type="checkbox" class="sup-prod-cb" value="' + p.id + '"' + checked + ' style="width:16px;height:16px;accent-color:#3ab87d"/>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:13px;font-weight:600">' + p.name + '</div>' +
+        '<div style="font-size:11px;color:#888">' + (p.company||"") + ' · ' + p.category + '</div>' +
+      '</div>' +
+      '<span style="font-size:11px;color:' + stockColor + '">' + p.quantity + '/' + p.maxStock + '</span>' +
+    '</label>';
+  }).join("");
+}
+
 function closeModal() { document.getElementById("sup-modal").classList.remove("open"); }
+function closeLinkModal() { document.getElementById("link-modal").classList.remove("open"); }
 
 async function saveSupplier() {
   var name  = document.getElementById("sup-name").value.trim();
@@ -123,57 +251,220 @@ async function saveSupplier() {
   var email = document.getElementById("sup-email").value.trim();
   var notes = document.getElementById("sup-notes").value.trim();
   if (!name) { showToast("Supplier name is required.","error"); return; }
+
+  // Get selected product IDs
+  var checkboxes = document.querySelectorAll(".sup-prod-cb");
+  var selectedProdIds = [];
+  checkboxes.forEach(function(cb) { if (cb.checked) selectedProdIds.push(cb.value); });
+
   var data = { name: name, phone: phone, email: email, notes: notes, updatedAt: firebase.firestore.FieldValue.serverTimestamp() };
   try {
-    if (editingId) { await db.collection(COL.suppliers).doc(editingId).update(data); showToast("Supplier updated!"); }
-    else { data.createdAt=firebase.firestore.FieldValue.serverTimestamp(); await db.collection(COL.suppliers).add(data); showToast("Supplier added!"); }
-    closeModal(); loadData();
-  } catch(e) { showToast("Error saving supplier.","error"); }
+    var supId;
+    if (editingId) {
+      await db.collection(COL.suppliers).doc(editingId).update(data);
+      supId = editingId;
+      showToast("Supplier updated!");
+    } else {
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      var docRef = await db.collection(COL.suppliers).add(data);
+      supId = docRef.id;
+      showToast("Supplier added!");
+    }
+
+    // Update product-supplier links
+    await updateProductLinks(supId, selectedProdIds);
+
+    closeModal();
+    loadData();
+  } catch(e) {
+    showToast("Error saving supplier: " + e.message, "error");
+  }
+}
+
+async function updateProductLinks(supId, selectedProdIds) {
+  var batch = db.batch();
+  // Remove this supplier from products that were unlinked
+  products.forEach(function(p) {
+    if (p.supplierId === supId && selectedProdIds.indexOf(p.id) === -1) {
+      batch.update(db.collection(COL.products).doc(p.id), { supplierId: null });
+    }
+  });
+  // Add this supplier to newly linked products
+  selectedProdIds.forEach(function(pid) {
+    var prod = products.find(function(p){return p.id === pid;});
+    if (prod && prod.supplierId !== supId) {
+      batch.update(db.collection(COL.products).doc(pid), { supplierId: supId });
+    }
+  });
+  await batch.commit();
+}
+</script>
+<script>
+// ── Quick Link Products Modal (from supplier card) ──
+var linkingSupplierId = null;
+
+function openLinkProducts(supId) {
+  linkingSupplierId = supId;
+  var sup = suppliers.find(function(s){return s.id===supId;});
+  document.getElementById("link-modal-title").textContent = "Link Products to " + (sup?sup.name:"Supplier");
+  var linkedIds = getLinkedProducts(supId).map(function(p){return p.id;});
+  populateLinkCheckboxes(linkedIds);
+  document.getElementById("link-modal").classList.add("open");
+}
+
+function populateLinkCheckboxes(selectedIds) {
+  var container = document.getElementById("link-products-list");
+  document.getElementById("link-prod-filter").value = "";
+  renderLinkCheckboxes(selectedIds, "");
+}
+
+function renderLinkCheckboxes(selectedIds, filter) {
+  var container = document.getElementById("link-products-list");
+  var filtered = products;
+  if (filter) {
+    filtered = products.filter(function(p) {
+      return p.name.toLowerCase().includes(filter) || (p.company||"").toLowerCase().includes(filter);
+    });
+  }
+  if (!filtered.length) {
+    container.innerHTML = '<div style="color:#888;font-size:13px;padding:8px">No products match.</div>';
+    return;
+  }
+  var selected = filtered.filter(function(p){return selectedIds.indexOf(p.id) !== -1;});
+  var unselected = filtered.filter(function(p){return selectedIds.indexOf(p.id) === -1;});
+  var sorted = selected.concat(unselected);
+
+  container.innerHTML = sorted.map(function(p) {
+    var checked = selectedIds.indexOf(p.id) !== -1 ? ' checked' : '';
+    var otherSup = p.supplierId && p.supplierId !== linkingSupplierId ? suppliers.find(function(s){return s.id===p.supplierId;}) : null;
+    var otherTag = otherSup ? ' <span style="font-size:10px;color:#f0ad4e">(linked to ' + otherSup.name + ')</span>' : '';
+    return '<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer">' +
+      '<input type="checkbox" class="link-prod-cb" value="' + p.id + '"' + checked + ' style="width:16px;height:16px;accent-color:#3ab87d"/>' +
+      '<div style="flex:1"><span style="font-size:13px;font-weight:600">' + p.name + '</span>' + otherTag +
+      '<div style="font-size:11px;color:#888">' + (p.company||"") + ' · ' + p.category + ' · Stock: ' + p.quantity + '</div></div>' +
+    '</label>';
+  }).join("");
+}
+
+async function saveLinkProducts() {
+  if (!linkingSupplierId) return;
+  var checkboxes = document.querySelectorAll(".link-prod-cb");
+  var selectedProdIds = [];
+  checkboxes.forEach(function(cb) { if (cb.checked) selectedProdIds.push(cb.value); });
+
+  try {
+    await updateProductLinks(linkingSupplierId, selectedProdIds);
+    showToast("Product links updated!");
+    closeLinkModal();
+    loadData();
+  } catch(e) {
+    showToast("Error updating links: " + e.message, "error");
+  }
 }
 
 async function deleteSupplier(id,name) {
-  if (!confirmAction('Delete supplier "' + name + '"?')) return;
-  await db.collection(COL.suppliers).doc(id).delete();
-  suppliers=suppliers.filter(function(x){return x.id!==id;});
-  renderSuppliers();
-  showToast("Supplier deleted.");
+  if (!confirmAction('Delete supplier "' + name + '"? Products linked to this supplier will be unlinked.')) return;
+  try {
+    // Unlink products first
+    var batch = db.batch();
+    products.forEach(function(p) {
+      if (p.supplierId === id) {
+        batch.update(db.collection(COL.products).doc(p.id), { supplierId: null });
+      }
+    });
+    batch.delete(db.collection(COL.suppliers).doc(id));
+    await batch.commit();
+    showToast("Supplier deleted.");
+    loadData();
+  } catch(e) {
+    showToast("Error deleting supplier.", "error");
+  }
 }
-
+</script>
+<script>
 document.addEventListener("DOMContentLoaded", function() {
-  buildLayout("Suppliers");
+  buildLayout(t("sup.title"));
 
-  document.getElementById("topbar-actions").innerHTML='<button class="btn btn-primary" onclick="openAdd()">+ Add Supplier</button>';
+  document.getElementById("topbar-actions").innerHTML='<button class="btn btn-primary" onclick="openAdd()">+ ' + t("sup.add") + '</button>';
   document.getElementById("page-content").innerHTML=
+    // Search bar
+    '<div class="card" style="margin-bottom:14px;padding:12px 16px">' +
+      '<div class="search-input-wrap">' +
+        '<span class="search-icon">🔍</span>' +
+        '<input type="text" id="sup-search" placeholder="Search suppliers by name, phone, or email…" oninput="searchQ=this.value.toLowerCase();renderSuppliers()"/>' +
+      '</div>' +
+    '</div>' +
+
+    // Reorder drafts
     '<div class="card" style="margin-bottom:18px">' +
-      '<div class="card-title">📦 Auto Reorder Drafts (Critical Low Stock)</div>' +
+      '<div class="card-title">📦 ' + t("sup.reorder") + '</div>' +
       '<div id="reorder-list"><div style="color:#888">Loading…</div></div>' +
     '</div>' +
+
+    // Suppliers grid
     '<div class="card">' +
       '<div class="card-title">All Suppliers</div>' +
-      '<div id="suppliers-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:4px">' +
+      '<div id="suppliers-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;margin-top:4px">' +
         '<div style="color:#888">Loading…</div>' +
       '</div>' +
     '</div>' +
 
+    // Add/Edit Supplier Modal
     '<div class="modal-overlay" id="sup-modal">' +
-      '<div class="modal">' +
-        '<div class="modal-header"><h3>Supplier Details</h3><button class="modal-close" onclick="closeModal()">✕</button></div>' +
+      '<div class="modal" style="max-width:560px">' +
+        '<div class="modal-header"><h3 id="sup-modal-title">Add Supplier</h3><button class="modal-close" onclick="closeModal()">✕</button></div>' +
         '<form id="sup-form">' +
-          '<div class="form-group" style="margin-bottom:12px"><label>Supplier Name *</label><input type="text" id="sup-name" placeholder="e.g. Raj Traders"/></div>' +
+          '<div class="form-group" style="margin-bottom:12px"><label>' + t("sup.name") + ' *</label><input type="text" id="sup-name" placeholder="e.g. Raj Traders"/></div>' +
           '<div class="form-grid" style="margin-bottom:12px">' +
-            '<div class="form-group"><label>Phone / WhatsApp</label><input type="text" id="sup-phone" placeholder="9876543210"/></div>' +
-            '<div class="form-group"><label>Email</label><input type="email" id="sup-email" placeholder="supplier@email.com"/></div>' +
+            '<div class="form-group"><label>' + t("sup.phone") + ' *</label><input type="text" id="sup-phone" placeholder="9876543210"/></div>' +
+            '<div class="form-group"><label>' + t("sup.email") + '</label><input type="email" id="sup-email" placeholder="supplier@email.com"/></div>' +
           '</div>' +
-          '<div class="form-group" style="margin-bottom:12px"><label>Notes</label><textarea id="sup-notes" placeholder="Product lines, payment terms, etc."></textarea></div>' +
+          '<div class="form-group" style="margin-bottom:12px"><label>' + t("sup.notes") + '</label><textarea id="sup-notes" placeholder="…" rows="2"></textarea></div>' +
+          '<div class="form-group" style="margin-bottom:12px">' +
+            '<label>' + t("sup.link_products") + '</label>' +
+            '<input type="text" id="sup-prod-filter" placeholder="Filter products…" style="margin-bottom:8px;font-size:13px" oninput="filterSupProducts(this.value)"/>' +
+            '<div id="sup-products-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px"></div>' +
+          '</div>' +
         '</form>' +
         '<div class="modal-footer">' +
-          '<button class="btn btn-outline" onclick="closeModal()">Cancel</button>' +
-          '<button class="btn btn-primary" onclick="saveSupplier()">Save Supplier</button>' +
+          '<button class="btn btn-outline" onclick="closeModal()">' + t("action.cancel") + '</button>' +
+          '<button class="btn btn-primary" onclick="saveSupplier()">💾 ' + t("action.save") + '</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // Quick Link Products Modal
+    '<div class="modal-overlay" id="link-modal">' +
+      '<div class="modal" style="max-width:480px">' +
+        '<div class="modal-header"><h3 id="link-modal-title">Link Products</h3><button class="modal-close" onclick="closeLinkModal()">✕</button></div>' +
+        '<div style="padding:0 20px">' +
+          '<input type="text" id="link-prod-filter" placeholder="Filter products…" style="margin-bottom:8px;font-size:13px;width:100%" oninput="filterLinkProducts(this.value)"/>' +
+          '<div id="link-products-list" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px"></div>' +
+        '</div>' +
+        '<div class="modal-footer">' +
+          '<button class="btn btn-outline" onclick="closeLinkModal()">Cancel</button>' +
+          '<button class="btn btn-primary" onclick="saveLinkProducts()">✅ Save Links</button>' +
         '</div>' +
       '</div>' +
     '</div>';
+
   loadData();
 });
+
+// Filter helpers for product checkboxes
+function filterSupProducts(val) {
+  var checkboxes = document.querySelectorAll(".sup-prod-cb");
+  var selectedIds = [];
+  checkboxes.forEach(function(cb) { if (cb.checked) selectedIds.push(cb.value); });
+  renderProductCheckboxes(selectedIds, val.toLowerCase());
+}
+
+function filterLinkProducts(val) {
+  var checkboxes = document.querySelectorAll(".link-prod-cb");
+  var selectedIds = [];
+  checkboxes.forEach(function(cb) { if (cb.checked) selectedIds.push(cb.value); });
+  renderLinkCheckboxes(selectedIds, val.toLowerCase());
+}
 </script>
 </body>
 </html>

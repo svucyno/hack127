@@ -84,10 +84,34 @@ function getExpiryThresholds(category) {
 
 // ── Alert engine ──────────────────────────────────────────────────────────
 async function runAlertEngine() {
-  var snap = await db.collection(COL.products).get();
+  var results = await Promise.all([
+    db.collection(COL.products).get(),
+    db.collection(COL.alerts).where("resolved", "==", false).get(),
+    db.collection(COL.offers).where("active", "==", true).get()
+  ]);
+  var snap = results[0];
+  var alertsSnap = results[1];
+  var offersSnap = results[2];
   var batch = db.batch();
-  var alertsSnap = await db.collection(COL.alerts).where("resolved", "==", false).get();
   var existingKeys = new Set(alertsSnap.docs.map(function(d) { return d.data().key; }));
+
+  // Build set of product IDs that have active, valid offers
+  var todayStr = today();
+  var coveredProducts = new Set();
+  offersSnap.docs.forEach(function(d) {
+    var o = d.data();
+    if (o.active && (!o.validUntil || o.validUntil >= todayStr) && (!o.maxQty || (o.soldQty||0) < o.maxQty)) {
+      coveredProducts.add(o.productId);
+    }
+  });
+
+  // Auto-resolve existing expiry alerts for products that now have offers
+  alertsSnap.docs.forEach(function(d) {
+    var a = d.data();
+    if ((a.type === "expiry15" || a.type === "expiry30") && coveredProducts.has(a.productId)) {
+      batch.update(db.collection(COL.alerts).doc(d.id), { resolved: true, autoResolved: true, resolveNote: "Auto-resolved: Clearance offer created" });
+    }
+  });
 
   snap.forEach(function(doc) {
     var p   = doc.data();
@@ -97,8 +121,9 @@ async function runAlertEngine() {
     var pct = (qty / max) * 100;
     var exp = p.expiryDate ? daysUntil(p.expiryDate) : null;
     var thresholds = getExpiryThresholds(p.category);
+    var hasCover = coveredProducts.has(id);
 
-    // Low stock
+    // Low stock (not affected by offers)
     if (pct <= 10) {
       var key = "lowstock_" + id;
       if (!existingKeys.has(key)) {
@@ -107,25 +132,28 @@ async function runAlertEngine() {
       }
     }
 
-    // Expiry warning (yellow)
-    if (exp !== null && exp <= thresholds.warning && exp > thresholds.urgent) {
-      var key2 = "expiry_warn_" + id;
-      if (!existingKeys.has(key2)) {
-        var ref2 = db.collection(COL.alerts).doc();
-        batch.set(ref2, { type: "expiry30", key: key2, productId: id, productName: p.name, category: p.category, message: "Expiry warning: " + p.name + " (" + p.category + ") expires in " + exp + " days (" + fmtDate(p.expiryDate) + ").", resolved: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+    // Skip expiry alerts if product has an active offer
+    if (!hasCover) {
+      // Expiry warning (yellow)
+      if (exp !== null && exp <= thresholds.warning && exp > thresholds.urgent) {
+        var key2 = "expiry_warn_" + id;
+        if (!existingKeys.has(key2)) {
+          var ref2 = db.collection(COL.alerts).doc();
+          batch.set(ref2, { type: "expiry30", key: key2, productId: id, productName: p.name, category: p.category, message: "Expiry warning: " + p.name + " (" + p.category + ") expires in " + exp + " days (" + fmtDate(p.expiryDate) + "). Consider adding a discount offer.", resolved: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        }
+      }
+
+      // Expiry urgent (red)
+      if (exp !== null && exp <= thresholds.urgent && exp >= 0) {
+        var key3 = "expiry_urgent_" + id;
+        if (!existingKeys.has(key3)) {
+          var ref3 = db.collection(COL.alerts).doc();
+          batch.set(ref3, { type: "expiry15", key: key3, productId: id, productName: p.name, category: p.category, message: "URGENT: " + p.name + " (" + p.category + ") expires in " + exp + " day" + (exp !== 1 ? "s" : "") + "! Consider a discount offer or clearance sale.", resolved: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+        }
       }
     }
 
-    // Expiry urgent (red)
-    if (exp !== null && exp <= thresholds.urgent && exp >= 0) {
-      var key3 = "expiry_urgent_" + id;
-      if (!existingKeys.has(key3)) {
-        var ref3 = db.collection(COL.alerts).doc();
-        batch.set(ref3, { type: "expiry15", key: key3, productId: id, productName: p.name, category: p.category, message: "URGENT: " + p.name + " (" + p.category + ") expires in " + exp + " day" + (exp !== 1 ? "s" : "") + "! Consider a discount offer.", resolved: false, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
-      }
-    }
-
-    // Already expired
+    // Already expired (always alert, even with offer)
     if (exp !== null && exp < 0) {
       var key4 = "expired_" + id;
       if (!existingKeys.has(key4)) {
@@ -134,7 +162,7 @@ async function runAlertEngine() {
       }
     }
 
-    // Dead stock — use createdAt timestamp instead of broken createdDaysAgo
+    // Dead stock
     if ((p.salesCount30 || 0) === 0 && p.createdAt && p.createdAt.toDate) {
       var createdDays = daysSince(p.createdAt.toDate().toISOString().split("T")[0]);
       if (createdDays > 30) {
@@ -297,3 +325,38 @@ async function runCustomerAlertEngine() {
   }
 }
 
+
+// ── Category Icons ─────────────────────────────────────────────────────────
+var CAT_ICONS = {
+  "All":           "🏷️",
+  "Groceries":     "🌾",
+  "Dairy":         "🥛",
+  "Beverages":     "🥤",
+  "Personal Care": "🧴",
+  "Stationery":    "✏️",
+  "Electronics":   "🔌",
+  "Snacks":        "🍿",
+  "Medicines":     "💊",
+  "Cleaning":      "🧹",
+  "Other":         "📦"
+};
+
+function buildCatNav(categories, productsList, activeCat, onClickFn) {
+  var counts = {};
+  counts["All"] = productsList.length;
+  categories.forEach(function(c) {
+    counts[c] = productsList.filter(function(p) { return p.category === c; }).length;
+  });
+  var allCats = ["All"].concat(categories);
+  return '<div class="cat-nav">' + allCats.map(function(c) {
+    var isActive = (c === "All" && !activeCat) || c === activeCat;
+    var icon = CAT_ICONS[c] || "📦";
+    var count = counts[c] || 0;
+    var val = c === "All" ? "" : c;
+    return '<div class="cat-chip' + (isActive ? ' active' : '') + '" onclick="' + onClickFn + '(\'' + val + '\')">'
+      + '<span class="cat-chip-icon">' + icon + '</span>'
+      + '<span class="cat-chip-label">' + c + '</span>'
+      + (count > 0 ? '<span class="cat-chip-count">' + count + '</span>' : '')
+      + '</div>';
+  }).join("") + '</div>';
+}

@@ -10,14 +10,16 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="../js/firebase.js?v=5"></script>
   <script src="../js/utils.js?v=5"></script>
+  <script src="../js/i18n.js?v=1"></script>
   <script src="../js/layout.js?v=5"></script>
+  <script src="../js/offline.js?v=1"></script>
 </head>
 <body>
 <div id="app"></div>
 <script>
 var ICONS = { lowstock:"⚠️", expiry30:"🟡", expiry15:"🔴", deadstock:"💤", bestseller:"⭐️", gst:"🧾" };
 var LABELS = { lowstock:"Low Stock", expiry30:"Expiry (30 days)", expiry15:"Expiry (15 days)", deadstock:"Dead Stock", bestseller:"Best Seller", gst:"GST Anomaly" };
-var allAlerts = [], filterType = "all", filterResolved = "unresolved";
+var allAlerts = [], activeOfferProductIds = new Set(), filterType = "all", filterResolved = "unresolved";
 
 function renderAlerts() {
   var list = allAlerts;
@@ -28,26 +30,41 @@ function renderAlerts() {
   var el = document.getElementById("alerts-list");
   if (!list.length) {
     el.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><p>' +
-      (filterResolved==="unresolved" ? "No active alerts. Everything looks good!" : "No resolved alerts yet.") +
+      (filterResolved==="unresolved" ? t("alert.all_good") : t("alert.resolved")) +
       '</p></div>';
     return;
   }
   el.innerHTML = list.map(function(a) {
     var dateStr = a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().toLocaleDateString("en-IN") : "—";
     var resolveBtn = !a.resolved
-      ? '<button class="btn btn-sm btn-outline" onclick="resolveAlert(\'' + a.id + '\')">✓ Resolve</button>'
+      ? '<button class="btn btn-sm btn-outline" onclick="resolveAlert(\'' + a.id + '\')">✓ ' + t("alert.resolve") + '</button>'
       : '<span class="badge badge-green">Resolved</span>';
-    var resolvedNote = a.resolved ? '<div style="font-size:11px;color:#aaa;margin-top:4px">Resolved</div>' : '';
+    var resolvedNote = a.resolved
+      ? '<div style="font-size:11px;color:#aaa;margin-top:4px">' + (a.resolveNote || 'Resolved') + '</div>'
+      : '';
+    // Show "Create Offer" button for unresolved expiry alerts
+    var offerBtn = '';
+    if (!a.resolved && (a.type === "expiry15" || a.type === "expiry30") && a.productId) {
+      offerBtn = '<a href="offers.html?quickOffer=' + a.productId + '" class="btn btn-sm btn-accent" style="font-size:11px">🎯 Create Offer</a>';
+    }
+    // Show "Offer Active" tag if product has an active offer
+    var offerTag = '';
+    if (a.productId && activeOfferProductIds.has(a.productId) && (a.type === "expiry15" || a.type === "expiry30")) {
+      offerTag = '<span class="badge badge-green" style="font-size:10px;margin-top:4px">✅ Offer Active</span>';
+    }
     return '<div class="alert-item ' + a.type + '" id="alert-' + a.id + '">' +
       '<span class="alert-icon">' + (ICONS[a.type]||"🔔") + '</span>' +
       '<div class="alert-msg">' +
         '<div style="font-weight:600;font-size:12px;color:#777;margin-bottom:2px">' + (LABELS[a.type]||a.type) + '</div>' +
         a.message +
         resolvedNote +
+        offerTag +
       '</div>' +
       '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">' +
         '<span class="alert-time">' + dateStr + '</span>' +
         resolveBtn +
+        offerBtn +
+        '<button class="btn btn-sm btn-danger" style="font-size:11px" onclick="deleteAlert(\'' + a.id + '\')">🗑️</button>' +
       '</div>' +
     '</div>';
   }).join("");
@@ -55,8 +72,17 @@ function renderAlerts() {
 
 async function loadAlerts() {
   try {
-    var snap = await db.collection(COL.alerts).orderBy("createdAt","desc").limit(100).get();
-    allAlerts = snap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+    var results = await Promise.all([
+      db.collection(COL.alerts).orderBy("createdAt","desc").limit(100).get(),
+      db.collection(COL.offers).where("active", "==", true).get()
+    ]);
+    allAlerts = results[0].docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
+    var todayStr = today();
+    activeOfferProductIds = new Set();
+    results[1].docs.forEach(function(d) {
+      var o = d.data();
+      if (!o.validUntil || o.validUntil >= todayStr) activeOfferProductIds.add(o.productId);
+    });
     updateCounts();
     renderAlerts();
   } catch(e) {
@@ -80,6 +106,15 @@ async function resolveAlert(id) {
   showToast("Alert resolved.");
 }
 
+async function deleteAlert(id) {
+  if (!confirmAction("Delete this alert permanently?")) return;
+  await db.collection(COL.alerts).doc(id).delete();
+  allAlerts = allAlerts.filter(function(x) { return x.id !== id; });
+  updateCounts();
+  renderAlerts();
+  showToast("Alert deleted.");
+}
+
 async function resolveAll() {
   if (!confirmAction("Mark all unresolved alerts as resolved?")) return;
   var unresolved = allAlerts.filter(function(a) { return !a.resolved; });
@@ -92,6 +127,19 @@ async function resolveAll() {
   showToast(unresolved.length + " alerts resolved.");
 }
 
+async function deleteAllResolved() {
+  var resolved = allAlerts.filter(function(a) { return a.resolved; });
+  if (!resolved.length) { showToast("No resolved alerts to delete.", "info"); return; }
+  if (!confirmAction("Delete all " + resolved.length + " resolved alerts permanently?")) return;
+  var batch = db.batch();
+  resolved.forEach(function(a) { batch.delete(db.collection(COL.alerts).doc(a.id)); });
+  await batch.commit();
+  allAlerts = allAlerts.filter(function(a) { return !a.resolved; });
+  updateCounts();
+  renderAlerts();
+  showToast(resolved.length + " resolved alerts deleted.");
+}
+
 async function runCheck() {
   showToast("Running stock & expiry check…", "info");
   await runAlertEngine();
@@ -100,35 +148,36 @@ async function runCheck() {
 }
 
 document.addEventListener("DOMContentLoaded", function() {
-  buildLayout("Alerts & Notifications");
+  buildLayout(t("alert.title"));
 
   var actions = document.getElementById("topbar-actions");
   actions.innerHTML =
-    '<button class="btn btn-outline btn-sm" onclick="runCheck()">🔄 Run Check</button>' +
-    '<button class="btn btn-sm" style="background:#E8F5E9;color:var(--green)" onclick="resolveAll()">✓ Resolve All</button>';
+    '<button class="btn btn-outline btn-sm" onclick="runCheck()">🔄 ' + t("alert.run_check") + '</button>' +
+    '<button class="btn btn-sm" style="background:#E8F5E9;color:var(--green)" onclick="resolveAll()">✓ ' + t("alert.resolve_all") + '</button>' +
+    '<button class="btn btn-sm btn-danger" onclick="deleteAllResolved()">🗑️ Delete Resolved</button>';
 
   document.getElementById("page-content").innerHTML =
     '<div class="kpi-grid" style="margin-bottom:18px">' +
-      '<div class="kpi-card red"><div class="kpi-label">Expiry (15 days)</div><div class="kpi-value" id="cnt-exp15">—</div></div>' +
-      '<div class="kpi-card yellow"><div class="kpi-label">Expiry (30 days)</div><div class="kpi-value" id="cnt-exp30">—</div></div>' +
-      '<div class="kpi-card accent"><div class="kpi-label">Low Stock</div><div class="kpi-value" id="cnt-low">—</div></div>' +
-      '<div class="kpi-card" style="border-left-color:#607D8B"><div class="kpi-label">Dead Stock</div><div class="kpi-value" id="cnt-dead">—</div></div>' +
-      '<div class="kpi-card blue"><div class="kpi-label">Unresolved Total</div><div class="kpi-value" id="badge-count">—</div></div>' +
+      '<div class="kpi-card red"><div class="kpi-label">' + t("alert.expiry15") + '</div><div class="kpi-value" id="cnt-exp15">—</div></div>' +
+      '<div class="kpi-card yellow"><div class="kpi-label">' + t("alert.expiry30") + '</div><div class="kpi-value" id="cnt-exp30">—</div></div>' +
+      '<div class="kpi-card accent"><div class="kpi-label">' + t("alert.low_stock") + '</div><div class="kpi-value" id="cnt-low">—</div></div>' +
+      '<div class="kpi-card" style="border-left-color:#607D8B"><div class="kpi-label">' + t("alert.deadstock") + '</div><div class="kpi-value" id="cnt-dead">—</div></div>' +
+      '<div class="kpi-card blue"><div class="kpi-label">' + t("alert.unresolved") + '</div><div class="kpi-value" id="badge-count">—</div></div>' +
     '</div>' +
     '<div class="card">' +
       '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap">' +
         '<select onchange="filterType=this.value;renderAlerts()" style="min-width:160px">' +
-          '<option value="all">All Types</option>' +
-          '<option value="lowstock">Low Stock</option>' +
-          '<option value="expiry15">Expiry (15 days)</option>' +
-          '<option value="expiry30">Expiry (30 days)</option>' +
-          '<option value="deadstock">Dead Stock</option>' +
-          '<option value="bestseller">Best Seller</option>' +
+          '<option value="all">' + t("alert.all") + '</option>' +
+          '<option value="lowstock">' + t("alert.low_stock") + '</option>' +
+          '<option value="expiry15">' + t("alert.expiry15") + '</option>' +
+          '<option value="expiry30">' + t("alert.expiry30") + '</option>' +
+          '<option value="deadstock">' + t("alert.deadstock") + '</option>' +
+          '<option value="bestseller">' + t("alert.bestseller") + '</option>' +
         '</select>' +
         '<select onchange="filterResolved=this.value;renderAlerts()" style="min-width:140px">' +
-          '<option value="unresolved">Unresolved</option>' +
-          '<option value="resolved">Resolved</option>' +
-          '<option value="all">All</option>' +
+          '<option value="unresolved">' + t("alert.unresolved") + '</option>' +
+          '<option value="resolved">' + t("alert.resolved") + '</option>' +
+          '<option value="all">' + t("alert.all") + '</option>' +
         '</select>' +
       '</div>' +
       '<div id="alerts-list"><div style="text-align:center;padding:32px;color:#888">Loading…</div></div>' +

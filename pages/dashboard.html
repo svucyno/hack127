@@ -12,8 +12,11 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
   <script src="../js/firebase.js?v=5"></script>
   <script src="../js/utils.js?v=5"></script>
+  <script src="../js/i18n.js?v=1"></script>
   <script src="../js/layout.js?v=5"></script>
+  <script src="../js/predictions.js?v=1"></script>
   <script src="../js/donut-chart-fixed.js?v=1"></script>
+  <script src="../js/offline.js?v=1"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -30,14 +33,13 @@ async function loadDashboard() {
   var salesSnap = await db.collection(COL.sales)
     .where("date", "==", todayStr).get();
 
-  var todayCustomers = new Set(), todayItems = 0, todayRevenue = 0, todayProfit = 0, todayPointsIssued = 0;
+  var todayCustomers = new Set(), todayItems = 0, todayRevenue = 0, todayProfit = 0;
   salesSnap.forEach(function(d) {
     var s = d.data();
     todayCustomers.add(s.billId);
     (s.items || []).forEach(function(i) { todayItems += i.qty; });
     todayRevenue += s.grandTotal || 0;
     todayProfit  += s.profit || 0;
-    todayPointsIssued += s.pointsEarned || 0;
   });
 
   // Fetch 30-day sales for graph
@@ -59,7 +61,7 @@ async function loadDashboard() {
     profitData.push(+(dayMap[ds] || 0).toFixed(2));
   }
 
-   // Top sellers
+  // Top sellers
   var prodsSnap = await db.collection(COL.products).orderBy("salesCount30","desc").limit(5).get();
   var topSellers = prodsSnap.docs.map(function(d) { return { name: d.data().name, count: d.data().salesCount30 || 0 }; });
 
@@ -77,13 +79,6 @@ async function loadDashboard() {
     if (p.expiryDate && daysUntil(p.expiryDate) <= th.urgent) expiryCount++;
   });
 
-  // Top customers this month
-  var topCustomers = [];
-  try {
-    var custSnap = await db.collection(COL.customers).orderBy("totalSpent", "desc").limit(5).get();
-    topCustomers = custSnap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
-  } catch(e) { console.error("Top customers error:", e); }
-
   // Category sales pie
   var catMap = {};
   histSnap.forEach(function(d) {
@@ -100,46 +95,41 @@ async function loadDashboard() {
     '<!-- KPI Row -->' +
     '<div class="kpi-grid">' +
       '<div class="kpi-card">' +
-        '<div class="kpi-label">Customers Today</div>' +
+        '<div class="kpi-label">' + t("dash.customers") + '</div>' +
         '<div class="kpi-value">' + todayCustomers.size + '</div>' +
         '<div class="kpi-sub">Unique bills</div>' +
       '</div>' +
       '<div class="kpi-card accent">' +
-        '<div class="kpi-label">Items Sold Today</div>' +
+        '<div class="kpi-label">' + t("dash.items_sold") + '</div>' +
         '<div class="kpi-value">' + fmtNum(todayItems) + '</div>' +
         '<div class="kpi-sub">Units</div>' +
       '</div>' +
       '<div class="kpi-card blue">' +
-        '<div class="kpi-label">Revenue Today</div>' +
+        '<div class="kpi-label">' + t("dash.revenue") + '</div>' +
         '<div class="kpi-value" style="font-size:21px">' + fmtCurrency(todayRevenue) + '</div>' +
         '<div class="kpi-sub">Gross incl. GST</div>' +
       '</div>' +
       '<div class="kpi-card" style="border-left-color:#388E3C">' +
-        '<div class="kpi-label">Profit Today</div>' +
+        '<div class="kpi-label">' + t("dash.profit") + '</div>' +
         '<div class="kpi-value" style="font-size:21px;color:#2E7D32">' + fmtCurrency(todayProfit) + '</div>' +
         '<div class="kpi-sub">After cost</div>' +
       '</div>' +
       '<div class="kpi-card yellow">' +
-        '<div class="kpi-label">Active Alerts</div>' +
+        '<div class="kpi-label">' + t("dash.alerts") + '</div>' +
         '<div class="kpi-value" style="color:#F9A825">' + alertCount + '</div>' +
         '<div class="kpi-sub">' + lowStockCount + ' low stock · ' + expiryCount + ' expiry</div>' +
-      '</div>' +
-      '<div class="kpi-card" style="border-left-color:#cd7f32">' +
-        '<div class="kpi-label">Points Issued Today</div>' +
-        '<div class="kpi-value" style="font-size:21px">🪙 ' + fmtNum(todayPointsIssued) + '</div>' +
-        '<div class="kpi-sub">Loyalty points</div>' +
       '</div>' +
     '</div>' +
 
     '<!-- Charts row -->' +
     '<div class="grid-2" style="margin-bottom:18px">' +
       '<div class="card">' +
-        '<div class="card-title">30-Day Profit Trend</div>' +
+        '<div class="card-title">' + t("dash.trend") + '</div>' +
         '<div class="chart-wrap"><canvas id="profitChart"></canvas></div>' +
       '</div>' +
       '<div class="card" style="background:var(--card-bg);box-shadow:var(--shadow);padding:0;overflow:visible;position:relative">' +
         '<div class="neuro-chart-container">' +
-          '<div class="neuro-card-title">Sales by Category</div>' +
+          '<div class="neuro-card-title">' + t("dash.category") + '</div>' +
           '<div class="neuro-chart-wrapper">' +
             '<div class="neuro-chart-canvas-wrap">' +
               '<canvas id="catChart"></canvas>' +
@@ -152,9 +142,9 @@ async function loadDashboard() {
     '</div>' +
 
     '<!-- Top sellers + Alerts -->' +
-    '<div class="grid-2" style="margin-bottom:18px">' +
+    '<div class="grid-2">' +
       '<div class="card">' +
-        '<div class="card-title">🏆 Top Selling Products</div>' +
+        '<div class="card-title">🏆 ' + t("dash.top5") + '</div>' +
         '<div id="top-sellers">' +
           (topSellers.length === 0
             ? '<div class="empty-state"><div class="empty-icon">📦</div><p>No sales data yet.</p></div>'
@@ -169,34 +159,19 @@ async function loadDashboard() {
         '</div>' +
       '</div>' +
       '<div class="card">' +
-        '<div class="card-title">🔔 Recent Alerts</div>' +
+        '<div class="card-title">🔔 ' + t("dash.recent") + '</div>' +
         '<div id="recent-alerts">' +
           (alertCount === 0
-            ? '<div class="empty-state"><div class="empty-icon">✅</div><p>No active alerts. All good!</p></div>'
+            ? '<div class="empty-state"><div class="empty-icon">✅</div><p>' + t("alert.all_good") + '</p></div>'
             : "Loading…") +
         '</div>' +
       '</div>' +
     '</div>' +
 
-    '<!-- Top Customers -->' +
-    '<div class="card">' +
-      '<div class="card-title">👑 Top Customers by Spend</div>' +
-      '<div id="top-customers">' +
-        (topCustomers.length === 0
-          ? '<div class="empty-state"><div class="empty-icon">👤</div><p>No customer data yet.</p></div>'
-          : topCustomers.map(function(c, i) {
-              var tier = getTier(c.lifetimePoints);
-              var tierClass = tier.name.toLowerCase();
-              var icons = ["🥇","🥈","🥉","4️⃣","5️⃣"];
-              return '<div class="top-customer-item">' +
-                '<span style="font-size:18px;width:28px;text-align:center">' + icons[i] + '</span>' +
-                '<span style="flex:1;font-weight:600">' + (c.name || "Unknown") + '</span>' +
-                '<span class="tier-badge ' + tierClass + '" style="font-size:10px;padding:3px 10px">' + tier.name + '</span>' +
-                '<span class="points-display" style="font-size:12px"><span class="points-coin">🪙</span> ' + fmtNum(c.loyaltyPoints || 0) + '</span>' +
-                '<span class="badge badge-green">' + fmtCurrency(c.totalSpent || 0) + '</span>' +
-              '</div>';
-            }).join("")) +
-      '</div>' +
+    '<!-- AI Predictions -->' +
+    '<div class="card" style="margin-top:18px">' +
+      '<div class="card-title">🤖 ' + t("pred.title") + '</div>' +
+      '<div id="ai-predictions"><div style="color:#888;text-align:center;padding:16px">Analyzing sales patterns…</div></div>' +
     '</div>';
 
   // Profit chart
@@ -332,6 +307,60 @@ async function loadDashboard() {
 
   // Run alert engine in background
   runAlertEngine().catch(function() {});
+
+  // Load AI predictions
+  if (typeof PredictionEngine !== "undefined") {
+    PredictionEngine.generatePredictions().then(function(predictions) {
+      var el = document.getElementById("ai-predictions");
+      if (!el) return;
+      var urgent = predictions.filter(function(p) { return p.alerts.length > 0; });
+      var withRate = predictions.filter(function(p) { return p.dailyRate > 0; });
+
+      if (!withRate.length) {
+        el.innerHTML = '<div style="text-align:center;padding:16px;color:#888"><div style="font-size:28px;margin-bottom:8px">📊</div>' + t("pred.no_data") + '</div>';
+        return;
+      }
+
+      var html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px">';
+      // Show top urgent predictions (max 8)
+      var shown = urgent.slice(0, 8);
+      if (!shown.length) {
+        shown = withRate.slice(0, 6);
+      }
+      shown.forEach(function(pred) {
+        var stockPct = ((pred.currentQty / pred.maxStock) * 100).toFixed(0);
+        var stockColor = stockPct <= 10 ? '#e8634f' : stockPct <= 30 ? '#f0ad4e' : '#3ab87d';
+        var trendHtml = '<span style="color:' + pred.trend.color + '">' + pred.trend.icon + ' ' + pred.trend.trend + '</span>';
+        var alertsHtml = pred.alerts.map(function(a) {
+          var bgColor = a.severity === 'critical' ? '#ffcdd2' : '#fff9c4';
+          var txtColor = a.severity === 'critical' ? '#c62828' : '#7B5800';
+          return '<div style="font-size:11px;padding:4px 8px;border-radius:6px;background:' + bgColor + ';color:' + txtColor + ';margin-top:4px">' + a.icon + ' ' + a.message + '</div>';
+        }).join('');
+        var stockoutText = pred.stockoutDays === Infinity ? '—' : '~' + pred.stockoutDays + 'd';
+        var reorderHtml = pred.reorderQty > 0 ? '<div style="font-size:11px;color:var(--cyan,#00a3b8);margin-top:4px">📦 Suggest reorder: ' + pred.reorderQty + ' units</div>' : '';
+
+        html += '<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:12px;padding:14px;box-shadow:var(--shadow)">' +
+          '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">' +
+            '<div style="font-weight:700;font-size:13px">' + pred.name + '</div>' +
+            trendHtml +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--text-2);display:flex;gap:12px;flex-wrap:wrap">' +
+            '<span>Stock: <strong style="color:' + stockColor + '">' + pred.currentQty + '</strong>/' + pred.maxStock + '</span>' +
+            '<span>Rate: <strong>' + pred.dailyRate + '</strong>/day</span>' +
+            '<span>Runs out: <strong>' + stockoutText + '</strong></span>' +
+          '</div>' +
+          alertsHtml +
+          reorderHtml +
+        '</div>';
+      });
+      html += '</div>';
+      el.innerHTML = html;
+    }).catch(function(e) {
+      console.warn("Predictions error:", e);
+      var el = document.getElementById("ai-predictions");
+      if (el) el.innerHTML = '<div style="color:#888;text-align:center;padding:16px">Could not generate predictions.</div>';
+    });
+  }
   } catch(e) {
     console.error("Dashboard load error:", e);
     content.innerHTML = '<div class="card" style="text-align:center;padding:40px">' +
@@ -344,7 +373,7 @@ async function loadDashboard() {
 }
 
 document.addEventListener("DOMContentLoaded", function() {
-  buildLayout("Dashboard");
+  buildLayout(t("dash.title"));
   loadDashboard();
 });
 </script>

@@ -1,129 +1,4 @@
-var products = [], cart = [], activeOffers = [];
-var billingCustomer = null;   // linked customer doc
-var appliedCoupon = null;     // coupon object from customer
-var redeemPoints = 0;         // points being redeemed
-var isWalkIn = false;         // walk-in toggle
-
-async function lookupCustomer(phone) {
-  var infoEl = document.getElementById("cust-info");
-  var couponEl = document.getElementById("cust-coupon-area");
-  var pointsEl = document.getElementById("cust-points-area");
-  if (!phone || phone.length < 3) {
-    billingCustomer = null; appliedCoupon = null; redeemPoints = 0;
-    if (infoEl) infoEl.innerHTML = "";
-    if (couponEl) couponEl.innerHTML = "";
-    if (pointsEl) pointsEl.innerHTML = "";
-    renderCart();
-    return;
-  }
-  try {
-    var snap = await db.collection(COL.customers).where("phone", "==", phone).get();
-    if (!snap.empty) {
-      var doc = snap.docs[0];
-      billingCustomer = Object.assign({ id: doc.id }, doc.data());
-      var tier = getTier(billingCustomer.lifetimePoints);
-      var tierClass = tier.name.toLowerCase();
-      var activeCoupons = (billingCustomer.coupons || []).filter(function(cp) {
-        return !cp.used && cp.expiresAt >= today();
-      });
-
-      if (infoEl) {
-        infoEl.innerHTML =
-          '<div class="customer-billing-info">' +
-            '<span style="font-weight:700;font-size:14px">' + billingCustomer.name + '</span>' +
-            '<span class="tier-badge ' + tierClass + '">' + tier.name + '</span>' +
-            '<span class="points-display"><span class="points-coin">🪙</span> ' + fmtNum(billingCustomer.loyaltyPoints || 0) + ' pts</span>' +
-          '</div>';
-      }
-
-      // Coupons dropdown
-      if (couponEl) {
-        if (activeCoupons.length > 0) {
-          couponEl.innerHTML =
-            '<div style="margin-top:8px">' +
-              '<label style="font-size:12px;font-weight:600">Apply Coupon</label>' +
-              '<select id="coupon-select" onchange="applyCoupon()" style="margin-top:4px">' +
-                '<option value="">— None —</option>' +
-                activeCoupons.map(function(cp, idx) {
-                  var discLabel = cp.type === "percentage" ? cp.discount + "% OFF" : "₹" + cp.discount + " OFF";
-                  return '<option value="' + idx + '">' + cp.code + ' — ' + discLabel + (cp.minPurchase ? ' (min ₹' + cp.minPurchase + ')' : '') + '</option>';
-                }).join("") +
-              '</select>' +
-            '</div>';
-        } else {
-          couponEl.innerHTML = '<div style="font-size:11px;color:var(--text-3);margin-top:6px">No active coupons.</div>';
-        }
-      }
-
-      // Points redeem area
-      if (pointsEl && (billingCustomer.loyaltyPoints || 0) >= MIN_REDEEM_POINTS) {
-        pointsEl.innerHTML =
-          '<div class="customer-reward-section">' +
-            '<label style="font-size:12px;font-weight:600">Redeem Points (balance: ' + (billingCustomer.loyaltyPoints || 0) + ')</label>' +
-            '<div class="redeem-input-wrap">' +
-              '<input type="number" id="redeem-input" placeholder="0" min="0" max="' + (billingCustomer.loyaltyPoints || 0) + '" oninput="updateRedeem()"/>' +
-              '<span style="font-size:12px;color:var(--text-2)" id="redeem-value">= ₹0</span>' +
-            '</div>' +
-          '</div>';
-      } else if (pointsEl) {
-        pointsEl.innerHTML = '';
-      }
-    } else {
-      billingCustomer = null;
-      if (infoEl) {
-        infoEl.innerHTML = '<div style="font-size:13px;color:var(--accent);padding:8px 0">📌 New customer — will be saved after billing.</div>';
-      }
-      if (couponEl) couponEl.innerHTML = "";
-      if (pointsEl) pointsEl.innerHTML = "";
-    }
-  } catch(e) {
-    console.error("Customer lookup error:", e);
-  }
-}
-
-function applyCoupon() {
-  var sel = document.getElementById("coupon-select");
-  if (!sel || !billingCustomer) { appliedCoupon = null; renderCart(); return; }
-  var idx = sel.value;
-  if (idx === "") { appliedCoupon = null; renderCart(); return; }
-  var activeCoupons = (billingCustomer.coupons || []).filter(function(cp) { return !cp.used && cp.expiresAt >= today(); });
-  appliedCoupon = activeCoupons[parseInt(idx)] || null;
-  renderCart();
-}
-
-function updateRedeem() {
-  var input = document.getElementById("redeem-input");
-  var label = document.getElementById("redeem-value");
-  if (!input) return;
-  var val = parseInt(input.value) || 0;
-  var max = billingCustomer ? (billingCustomer.loyaltyPoints || 0) : 0;
-  if (val > max) { val = max; input.value = val; }
-  if (val < 0) { val = 0; input.value = 0; }
-  redeemPoints = val;
-  if (label) label.textContent = "= ₹" + (val * POINT_VALUE);
-  renderCart();
-}
-
-function toggleWalkIn() {
-  var cb = document.getElementById("walkin-toggle");
-  isWalkIn = cb ? cb.checked : false;
-  var phoneInput = document.getElementById("cust-phone");
-  var infoEl = document.getElementById("cust-info");
-  var couponEl = document.getElementById("cust-coupon-area");
-  var pointsEl = document.getElementById("cust-points-area");
-  if (isWalkIn) {
-    billingCustomer = null; appliedCoupon = null; redeemPoints = 0;
-    if (phoneInput) { phoneInput.disabled = true; phoneInput.value = ""; }
-    if (infoEl) infoEl.innerHTML = '<div style="font-size:12px;color:var(--text-3);padding:6px 0">Walk-in customer — no loyalty tracking.</div>';
-    if (couponEl) couponEl.innerHTML = "";
-    if (pointsEl) pointsEl.innerHTML = "";
-  } else {
-    if (phoneInput) { phoneInput.disabled = false; }
-    if (infoEl) infoEl.innerHTML = "";
-  }
-  renderCart();
-}
-
+var products = [], cart = [], activeOffers = [], billingCatFilter = "";
 
 async function loadProducts() {
   try {
@@ -139,6 +14,7 @@ async function loadProducts() {
       .filter(function(o) { return !o.validUntil || o.validUntil >= todayStr; });
 
     renderProductList();
+    renderBillCatNav();
   } catch(e) {
     console.error("Load products error:", e);
     var el = document.getElementById("prod-list");
@@ -147,7 +23,12 @@ async function loadProducts() {
 }
 
 function getOfferForProduct(productId) {
-  return activeOffers.find(function(o) { return o.productId === productId; }) || null;
+  return activeOffers.find(function(o) {
+    if (o.productId !== productId) return false;
+    // Skip if limited qty offer is sold out
+    if (o.maxQty && (o.soldQty || 0) >= o.maxQty) return false;
+    return true;
+  }) || null;
 }
 
 function calcDiscountedPrice(originalPrice, offer) {
@@ -173,7 +54,9 @@ function getOfferLabel(offer) {
 }
 
 function renderProductList(q) {
-  var list = q ? products.filter(function(p) { return p.name.toLowerCase().includes(q.toLowerCase()); }) : products;
+  var list = products;
+  if (billingCatFilter) list = list.filter(function(p) { return p.category === billingCatFilter; });
+  if (q) list = list.filter(function(p) { return p.name.toLowerCase().includes(q.toLowerCase()); });
   var el = document.getElementById("prod-list");
   if (!el) return;
   if (!list.length) { el.innerHTML = '<div style="padding:16px;color:#888;text-align:center">No products found.</div>'; return; }
@@ -199,10 +82,10 @@ function renderProductList(q) {
 function addToCart(id) {
   var p = products.find(function(x) { return x.id === id; });
   if (!p) return;
-  if (p.quantity <= 0) { showToast("Out of stock!", "error"); return; }
+  if (p.quantity <= 0) { showToast(t("bill.out_of_stock"), "error"); return; }
   var existing = cart.find(function(c) { return c.id === id; });
   if (existing) {
-    if (existing.qty >= p.quantity) { showToast("Max available stock reached.", "error"); return; }
+    if (existing.qty >= p.quantity) { showToast(t("bill.max_stock"), "error"); return; }
     existing.qty++;
   } else {
     var offer = getOfferForProduct(p.id);
@@ -225,7 +108,7 @@ function changeQty(id, delta) {
   if (!item) return;
   item.qty += delta;
   if (item.qty <= 0) cart = cart.filter(function(c) { return c.id !== id; });
-  if (item.qty > item.maxQty) { item.qty = item.maxQty; showToast("Max stock reached.","error"); }
+  if (item.qty > item.maxQty) { item.qty = item.maxQty; showToast(t("bill.max_stock"),"error"); }
   renderCart();
 }
 
@@ -234,40 +117,46 @@ function removeFromCart(id) {
   renderCart();
 }
 
-// ── Barcode Scan-to-Cart ────────────────────────────────────────────────
-function scanBillingBarcode() {
+function renderBillCatNav() {
+  var el = document.getElementById("bill-cat-nav");
+  if (el && typeof buildCatNav === "function") {
+    el.innerHTML = buildCatNav(
+      ["Groceries","Dairy","Beverages","Personal Care","Stationery","Electronics","Snacks","Medicines","Cleaning","Other"],
+      products, billingCatFilter, "selectBillCat"
+    );
+  }
+}
+
+function selectBillCat(cat) {
+  billingCatFilter = cat;
+  renderBillCatNav();
+  var q = document.getElementById("search-input");
+  renderProductList(q ? q.value : "");
+}
+
+function addToCartByBarcode(code) {
+  var p = products.find(function(x) { return x.barcode === code; });
+  if (p) {
+    addToCart(p.id);
+    showToast("✓ " + p.name + " added");
+  } else {
+    showToast("Product not found for barcode: " + code, "error");
+  }
+}
+
+function openBillingScanner() {
   BarcodeScanner.open({
-    mode: "continuous",
-    title: "Scan Items to Cart",
+    continuous: true,
     onScan: function(code) {
-      lookupBillingBarcode(code);
+      addToCartByBarcode(code);
     }
   });
 }
 
-async function lookupBillingBarcode(code) {
-  try {
-    var snap = await db.collection(COL.products).where("barcode", "==", code).get();
-    if (!snap.empty) {
-      var doc = snap.docs[0];
-      var productId = doc.id;
-      // Ensure product is in our local products array
-      var localProduct = products.find(function(p) { return p.id === productId; });
-      if (!localProduct) {
-        // Product not in local cache, reload and try again
-        await loadProducts();
-        localProduct = products.find(function(p) { return p.id === productId; });
-      }
-      if (localProduct) {
-        addToCart(productId);
-        showToast("Added: " + localProduct.name);
-      } else {
-        showToast("Product data error for barcode: " + code, "error");
-      }
-    } else {
-      showToast("Product not found for barcode: " + code, "error");
-    }
-  } catch(e) {
-    showToast("Scan error: " + e.message, "error");
+function checkUrlParams() {
+  var params = new URLSearchParams(window.location.search);
+  var productId = params.get("productId");
+  if (productId) {
+    setTimeout(function() { addToCart(productId); }, 500);
   }
 }
