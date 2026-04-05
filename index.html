@@ -101,8 +101,9 @@
       var existingDoc = await db.collection("users").doc(cred.user.uid).get();
       var existingRole = existingDoc.exists ? existingDoc.data().role : null;
       
-      // Only set role if user doesn't have one yet (don't overwrite Admin)
-      var finalRole = existingRole || selectedRole;
+      // Admin email gets Admin role always
+      var isAdminEmail = email.toLowerCase() === "admin@gmail.com";
+      var finalRole = isAdminEmail ? "Admin" : (existingRole || selectedRole);
       
       await db.collection("users").doc(cred.user.uid).set({
         uid: cred.user.uid,
