@@ -58,14 +58,16 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="js/firebase.js?v=5"></script>
 <script>
-  // Redirect if already logged in
+  var isSigningUp = false;
+  
   auth.onAuthStateChanged(async function(user) {
+    if (isSigningUp) return; // Don't redirect during signup
     if (user) {
       try {
         var doc = await db.collection("users").doc(user.uid).get();
         var role = doc.exists ? (doc.data().role || "User") : "User";
         window.location.href = role === "User" ? "pages/landing.html" : "pages/dashboard.html";
-      } catch(e) { window.location.href = "pages/dashboard.html"; }
+      } catch(e) { /* Don't redirect on error — let user stay on signup page */ }
     }
   });
 
@@ -91,6 +93,7 @@
     
     btn.textContent = "Creating account…"; 
     btn.disabled = true;
+    isSigningUp = true;
     
     try {
       const cred = await auth.createUserWithEmailAndPassword(email, pass);
@@ -105,7 +108,6 @@
         lastLogin: firebase.firestore.FieldValue.serverTimestamp()
       });
 
-      // Cache role for immediate use on next page
       localStorage.setItem("ss_role_" + cred.user.uid, JSON.stringify({
         role: role, name: name, email: email, ts: Date.now()
       }));

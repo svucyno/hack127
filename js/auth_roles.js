@@ -52,8 +52,8 @@ async function _fetchUserRole(uid) {
       return roleData;
     }
   } catch(e) { console.error("Role fetch error:", e); }
-  // No doc found — default to Admin for backward compat with old accounts
-  return { uid: uid, name: "", email: "", role: "Admin" };
+  // No doc found — default to User (Admin is only set explicitly)
+  return { uid: uid, name: "", email: "", role: "User" };
 }
 
 function getCurrentUserRole() {
@@ -65,7 +65,7 @@ function getCurrentUserRole() {
       if (cached) { var p = JSON.parse(cached); if (p.role) return p.role; }
     }
   } catch(e) {}
-  return "Admin";
+  return "User"; // Default to User, not Admin
 }
 
 function getCurrentUserData() { return _currentUserData; }
@@ -78,7 +78,7 @@ function hasPermission(page) {
 }
 
 function getNavItemsForRole(role) {
-  return ROLE_NAV[role] || ROLE_NAV["Admin"];
+  return ROLE_NAV[role] || ROLE_NAV["User"];
 }
 
 function onRoleReady(cb) {
@@ -136,7 +136,7 @@ function logout() {
       }
     } catch(e) {
       console.error("Guard error:", e);
-      _currentUserRole = "Admin";
+      _currentUserRole = "User";
       _notifyRoleReady();
     }
   });

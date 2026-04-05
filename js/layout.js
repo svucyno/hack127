@@ -58,7 +58,7 @@ function buildLayout(pageTitle) {
   ];
 
   // Filter nav by role
-  var role = typeof getCurrentUserRole === 'function' ? getCurrentUserRole() : 'Admin';
+  var role = typeof getCurrentUserRole === 'function' ? getCurrentUserRole() : 'User';
   var allowedKeys = typeof getNavItemsForRole === 'function' ? getNavItemsForRole(role) : allNav.map(function(n){return n.navKey;});
   var nav = allNav.filter(function(n) { return allowedKeys.indexOf(n.navKey) !== -1; });
   var roleLabel = role || "Store Owner";
