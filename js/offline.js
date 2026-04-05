@@ -66,6 +66,7 @@ var OfflineManager = (function() {
     return { synced: synced, failed: failed };
   }
   async function cacheFirestoreData() {
+    if (typeof db === "undefined" || typeof COL === "undefined") return;
     try {
       var results = await Promise.all([
         db.collection(COL.products).get(),

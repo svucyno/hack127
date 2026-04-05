@@ -14,6 +14,17 @@ firebase.initializeApp(firebaseConfig);
 var auth = firebase.auth();
 var db   = firebase.firestore();
 
+// Enable auth persistence
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function(e) {
+  console.warn("Auth persistence error:", e);
+});
+
+// Enable Firestore offline persistence
+db.enablePersistence({ synchronizeTabs: true }).catch(function(e) {
+  if (e.code === "failed-precondition") console.warn("Firestore persistence: multiple tabs open");
+  else if (e.code === "unimplemented") console.warn("Firestore persistence: not supported");
+});
+
 // ── Collections ────────────────────────────────────────────────────────────
 var COL = {
   products  : "products",
@@ -25,6 +36,18 @@ var COL = {
   users     : "users",
 };
 
-// ── Auth helpers ───────────────────────────────────────────────────────────
-// Role-based auth is handled by js/auth_roles.js
-// logout() is defined in auth_roles.js
+// ── Fallback logout (overridden by auth_roles.js on /pages/) ───────────────
+function logout() {
+  auth.signOut().catch(function(){});
+  window.location.href = window.location.pathname.indexOf("/pages/") !== -1
+    ? "../index.html" : "index.html";
+}
+
+// ── Global Error Handlers ──────────────────────────────────────────────────
+window.onerror = function(msg, url, line, col, error) {
+  console.error("Global error:", msg, "at", url, ":", line);
+  return false;
+};
+window.addEventListener("unhandledrejection", function(event) {
+  console.error("Unhandled promise rejection:", event.reason);
+});

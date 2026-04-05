@@ -347,3 +347,109 @@ This document details every feature implemented in ShopSmart, how it works, and 
 | Pages | 8 | dashboard, inventory, billing, alerts, offers, reports, suppliers, customers |
 | CSS | 2 | style.css, donut-chart-refined.css |
 | Docs | 2 | README.md, FEATURES.md |
+
+
+---
+
+## 17. 🔐 Role-Based Access Control (RBAC)
+
+**What it does:** Multi-role system where Admin, Worker, Cashier, and User each see only their permitted pages and data.
+
+**How it works:**
+- `js/auth_roles.js` loaded on every `/pages/` file, runs route guard via `auth.onAuthStateChanged`
+- Fetches user role from Firestore `users` collection, caches in localStorage for 5 minutes
+- Page permission matrix enforces access:
+  - **Admin:** All pages (dashboard, inventory, billing, alerts, offers, reports, suppliers, customers)
+  - **Worker:** Dashboard, inventory, alerts, suppliers
+  - **Cashier:** Dashboard, billing, alerts, reports
+  - **User (Customer):** Landing, deals, cart, orders
+- Sidebar nav dynamically filtered — each role only sees their allowed links
+- Unauthorized URL access redirects to role's default page
+- Signup page has role selector (Customer, Cashier, Worker, Admin)
+- Login redirects based on role: User → landing.html, others → dashboard.html
+- Old accounts without role doc default to Admin for backward compatibility
+
+**Files:** `js/auth_roles.js`, `js/layout.js`, `index.html`, `signup.html`
+
+---
+
+## 18. 🛍️ Customer Shopping Experience
+
+**What it does:** Full customer-facing shopping flow with product browsing, cart, checkout, pre-orders, and order tracking.
+
+**Pages:**
+- `landing.html` — Hero search (debounced 300ms), category grid, product cards with offers/stock badges, trending section
+- `offers_user.html` — Read-only deals with countdown timers, hot sale badges, limited qty progress bars, savings display
+- `cart.html` — Full cart with qty controls, GST breakdown (CGST/SGST), checkout + pre-order
+- `orders.html` — Order history with live status badges (Not Started/Packing/Ready), Buy Again, auto-refresh every 30s
+
+**Cart System (`js/cart_logic.js`):**
+- localStorage-based, persists across reloads
+- Corrupt cart recovery (validates each item has required fields)
+- Add/remove/update qty with stock validation
+- Auto GST calculation
+- Checkout creates sale in Firestore with atomic stock decrement
+- Pre-order system with estimated arrival time (10 min default)
+- Offline queue via IndexedDB when no internet
+
+**Files:** `js/cart_logic.js`, `pages/landing.html`, `pages/offers_user.html`, `pages/cart.html`, `pages/orders.html`
+
+---
+
+## 19. 🔒 Firestore Security Rules
+
+**What it does:** Server-side RBAC enforcement so no client-side bypass is possible.
+
+**Rules (`firestore.rules`):**
+- Products: read all authenticated, write Admin/Worker only
+- Sales: create any authenticated, read all authenticated, update Admin/Cashier, delete Admin
+- Users: read self or Admin, create self, update self or Admin, delete Admin
+- Offers: read all, write Admin only
+- Alerts: read/write all authenticated
+- Suppliers: read all, write Admin/Worker
+- Customers: read all, write Admin
+
+---
+
+## 20. ⚙️ Error Handling & Stability
+
+**What it does:** Crash prevention across the entire app.
+
+**How it works:**
+- Global `window.onerror` and `unhandledrejection` handlers in `firebase.js`
+- All async Firestore calls wrapped in try/catch
+- Safety guards: `typeof fn === 'function'` checks before calling external functions
+- `getCurrentUserRole()` checks localStorage cache before async fetch completes
+- Cart validates item structure on read (corrupt data recovery)
+- Predictions engine returns empty array on error instead of crashing
+- Offline manager checks `db` and `COL` exist before caching
+- Auth persistence enabled (`LOCAL`) to prevent session loss
+- Firestore offline persistence enabled with multi-tab support
+
+---
+
+## 21. 📡 Offline Support (Updated)
+
+**Service Worker (`sw.js`):**
+- Caches all 26 app files (12 JS, 12 HTML, 2 CSS)
+- Network-first for app files, cache fallback
+- Cache version `v3` — auto-cleans old caches
+
+**IndexedDB (`js/offline.js`):**
+- Stores: products, suppliers, offers, pendingWrites
+- Queues writes when offline, syncs on reconnect
+- Offline banner with translated messages
+- Auto-caches Firestore data 3 seconds after page load
+
+---
+
+## 📁 Updated File Summary
+
+| Area | Count | Files |
+|------|-------|-------|
+| Root | 5 | index.html, signup.html, sw.js, firestore.rules, .gitignore |
+| JS | 11 | firebase, utils, auth_roles, i18n, layout, billing, billing2, cart_logic, barcode-scanner, predictions, offline |
+| Pages | 12 | dashboard, inventory, billing, alerts, offers, reports, suppliers, customers, landing, offers_user, cart, orders |
+| CSS | 2 | style.css, donut-chart-refined.css |
+| Docs | 2 | README.md, FEATURES.md |
+| **Total** | **32** | |

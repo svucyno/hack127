@@ -54,7 +54,9 @@ var PredictionEngine = (function() {
     return { trend: "stable", icon: "➡️", color: "#f0ad4e" };
   }
   async function generatePredictions() {
+    if (typeof db === "undefined" || typeof COL === "undefined") return [];
     var thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    try {
     var results = await Promise.all([
       db.collection(COL.products).get(),
       db.collection(COL.sales).where("dateObj", ">=", thirtyDaysAgo).get()
@@ -90,6 +92,7 @@ var PredictionEngine = (function() {
       return a.stockoutDays - b.stockoutDays;
     });
     return predictions;
+    } catch(e) { console.error("Predictions error:", e); return []; }
   }
   return { generatePredictions: generatePredictions };
 })();

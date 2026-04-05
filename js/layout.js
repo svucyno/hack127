@@ -64,13 +64,15 @@ function buildLayout(pageTitle) {
 
   const navHTML = nav.map(n =>
     `<a href="${n.href}" class="nav-link" data-label="${n.label}">
-      <span class="nav-icon">${NAV_ICONS[n.key]}</span>
+      <span class="nav-icon">${NAV_ICONS[n.key] || ''}</span>
       <span class="nav-label">${n.label}</span>
     </a>`
   ).join("");
 
   const container = document.getElementById("app");
   if (!container) return;
+
+  var langSwitcher = typeof getLangSwitcherHTML === 'function' ? getLangSwitcherHTML() : '';
 
   container.innerHTML = `
     <div class="app-layout">
@@ -106,7 +108,7 @@ function buildLayout(pageTitle) {
           </button>
           <h2>${pageTitle}</h2>
           <div class="topbar-actions" id="topbar-actions">
-            <span id="lang-switch-wrap">${getLangSwitcherHTML()}</span>
+            <span id="lang-switch-wrap">${langSwitcher}</span>
             <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
           </div>
         </header>

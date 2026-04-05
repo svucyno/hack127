@@ -5,8 +5,15 @@ var CartManager = (function() {
   var CART_KEY = "shopsmart_cart";
 
   function getCart() {
-    try { return JSON.parse(localStorage.getItem(CART_KEY)) || []; }
-    catch(e) { return []; }
+    try {
+      var data = JSON.parse(localStorage.getItem(CART_KEY));
+      if (!Array.isArray(data)) return [];
+      // Validate each item has required fields
+      return data.filter(function(item) {
+        return item && item.productId && item.name && typeof item.price === "number" && typeof item.qty === "number";
+      });
+    }
+    catch(e) { localStorage.removeItem(CART_KEY); return []; }
   }
 
   function saveCart(cart) {
