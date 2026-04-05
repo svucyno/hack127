@@ -121,7 +121,34 @@ function buildLayout(pageTitle) {
   const toggle = document.getElementById("sidebar-toggle");
   const sidebar = document.getElementById("sidebar");
   if (window.innerWidth <= 900) toggle.style.display = "flex";
-  toggle?.addEventListener("click", () => sidebar.classList.toggle("open"));
+
+  // Create overlay for mobile sidebar
+  var overlay = document.createElement("div");
+  overlay.className = "sidebar-overlay";
+  overlay.id = "sidebar-overlay";
+  document.body.appendChild(overlay);
+
+  toggle?.addEventListener("click", function() {
+    sidebar.classList.toggle("open");
+    overlay.classList.toggle("show", sidebar.classList.contains("open"));
+  });
+
+  // Close sidebar on overlay click
+  overlay.addEventListener("click", function() {
+    sidebar.classList.remove("open");
+    overlay.classList.remove("show");
+  });
+
+  // Close sidebar on window resize to desktop
+  window.addEventListener("resize", function() {
+    if (window.innerWidth > 900) {
+      sidebar.classList.remove("open");
+      overlay.classList.remove("show");
+      toggle.style.display = "none";
+    } else {
+      toggle.style.display = "flex";
+    }
+  });
 
   // Set user info if logged in
   auth.onAuthStateChanged(user => {
