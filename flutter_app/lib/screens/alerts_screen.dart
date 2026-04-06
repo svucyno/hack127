@@ -28,13 +28,13 @@ class _AlertsScreenState extends State<AlertsScreen> {
       body: Column(children: [
         // Filters
         Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-          Expanded(child: DropdownButtonFormField<String>(value: _typeFilter, isDense: true, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+          Expanded(child: DropdownButtonFormField<String>(initialValue: _typeFilter, isDense: true, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
             items: [const DropdownMenuItem(value: 'all', child: Text('All Types', style: TextStyle(fontSize: 12))),
               ...['lowstock','expiry15','expiry30','deadstock','bestseller'].map((t) => DropdownMenuItem(value: t, child: Text(_labels[t] ?? t, style: const TextStyle(fontSize: 12))))],
             onChanged: (v) => setState(() => _typeFilter = v!),
           )),
           const SizedBox(width: 8),
-          Expanded(child: DropdownButtonFormField<String>(value: _statusFilter, isDense: true, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
+          Expanded(child: DropdownButtonFormField<String>(initialValue: _statusFilter, isDense: true, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8)),
             items: const [DropdownMenuItem(value: 'unresolved', child: Text('Unresolved', style: TextStyle(fontSize: 12))),
               DropdownMenuItem(value: 'resolved', child: Text('Resolved', style: TextStyle(fontSize: 12))),
               DropdownMenuItem(value: 'all', child: Text('All', style: TextStyle(fontSize: 12)))],

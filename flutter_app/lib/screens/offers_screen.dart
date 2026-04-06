@@ -81,7 +81,7 @@ class OffersScreen extends StatelessWidget {
       title: const Text('Create Offer'), scrollable: true,
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: prodCtrl, decoration: const InputDecoration(labelText: 'Product ID *')),
-        DropdownButtonFormField<String>(value: type, items: const [
+        DropdownButtonFormField<String>(initialValue: type, items: const [
           DropdownMenuItem(value: 'percent', child: Text('Percentage Off')),
           DropdownMenuItem(value: 'flat', child: Text('Flat Discount')),
         ], onChanged: (v) => type = v!, decoration: const InputDecoration(labelText: 'Type')),

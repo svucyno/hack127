@@ -128,12 +128,12 @@ class _InventoryScreenState extends State<InventoryScreen> {
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'Product Name *')),
         TextField(controller: companyCtrl, decoration: const InputDecoration(labelText: 'Company')),
-        DropdownButtonFormField<String>(value: cat, items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(), onChanged: (v) => cat = v!, decoration: const InputDecoration(labelText: 'Category')),
+        DropdownButtonFormField<String>(initialValue: cat, items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(), onChanged: (v) => cat = v!, decoration: const InputDecoration(labelText: 'Category')),
         TextField(controller: costCtrl, decoration: const InputDecoration(labelText: 'Cost Price ₹'), keyboardType: TextInputType.number),
         TextField(controller: sellCtrl, decoration: const InputDecoration(labelText: 'Selling Price ₹'), keyboardType: TextInputType.number),
         TextField(controller: qtyCtrl, decoration: const InputDecoration(labelText: 'Quantity'), keyboardType: TextInputType.number),
         TextField(controller: maxCtrl, decoration: const InputDecoration(labelText: 'Max Stock'), keyboardType: TextInputType.number),
-        DropdownButtonFormField<int>(value: gst, items: [0,5,12,18,28].map((g) => DropdownMenuItem(value: g, child: Text('$g%'))).toList(), onChanged: (v) => gst = v!, decoration: const InputDecoration(labelText: 'GST Slab')),
+        DropdownButtonFormField<int>(initialValue: gst, items: [0,5,12,18,28].map((g) => DropdownMenuItem(value: g, child: Text('$g%'))).toList(), onChanged: (v) => gst = v!, decoration: const InputDecoration(labelText: 'GST Slab')),
       ]),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),

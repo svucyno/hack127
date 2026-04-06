@@ -11,3 +11,9 @@ build/
 design.md
 requirements.md
 tasks.md
+
+
+# Flutter build artifacts
+flutter_app/.dart_tool/flutter_build/
+flutter_app/.dart_tool/extension_discovery/
+flutter_app/build/
