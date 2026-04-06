@@ -8,6 +8,9 @@ import '../screens/alerts_screen.dart';
 import '../screens/offers_screen.dart';
 import '../screens/suppliers_screen.dart';
 import '../screens/reports_screen.dart';
+import '../screens/users_screen.dart';
+import '../screens/customers_screen.dart';
+import '../screens/order_mgmt_screen.dart';
 
 final router = GoRouter(
   initialLocation: '/login',
@@ -27,5 +30,8 @@ final router = GoRouter(
     GoRoute(path: '/offers', builder: (_, __) => const OffersScreen()),
     GoRoute(path: '/suppliers', builder: (_, __) => const SuppliersScreen()),
     GoRoute(path: '/reports', builder: (_, __) => const ReportsScreen()),
+    GoRoute(path: '/users', builder: (_, __) => const UsersScreen()),
+    GoRoute(path: '/customers', builder: (_, __) => const CustomersScreen()),
+    GoRoute(path: '/orders', builder: (_, __) => const OrderMgmtScreen()),
   ],
 );
