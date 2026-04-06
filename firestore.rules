@@ -4,38 +4,9 @@ service cloud.firestore {
 
     function isAuth() { return request.auth != null; }
 
-    // Users: anyone authenticated can read/write their own doc, Admin can read all
-    match /users/{userId} {
-      allow read, write: if isAuth();
-    }
-
-    // Products: read all auth, write all auth (role check done client-side)
-    match /products/{doc} {
-      allow read, write: if isAuth();
-    }
-
-    // Sales: all authenticated users
-    match /sales/{doc} {
-      allow read, write: if isAuth();
-    }
-
-    // Offers: all authenticated users
-    match /offers/{doc} {
-      allow read, write: if isAuth();
-    }
-
-    // Alerts: all authenticated users
-    match /alerts/{doc} {
-      allow read, write: if isAuth();
-    }
-
-    // Suppliers: all authenticated users
-    match /suppliers/{doc} {
-      allow read, write: if isAuth();
-    }
-
-    // Customers: all authenticated users
-    match /customers/{doc} {
+    // Allow all authenticated users to read/write all collections
+    // Role-based access is enforced client-side via auth_roles.js
+    match /{document=**} {
       allow read, write: if isAuth();
     }
   }
